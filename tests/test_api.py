@@ -171,3 +171,33 @@ def test_public_names():
         "load_spec",
         "write",
     }
+
+
+def test_null_and_typed_choice_values_are_exported(tmp_path):
+    spec = dataspecter.load_spec(
+        {
+            "version": 1,
+            "entities": {
+                "item": {
+                    "count": 200,
+                    "fields": {
+                        "code": {"type": "choice", "values": ["FRIEND10", None], "weights": [1, 4]},
+                        "level": {
+                            "type": "choice",
+                            "value_type": "integer",
+                            "values": ["1 || 1", "2 || 1"],
+                        },
+                    },
+                }
+            },
+        }
+    )
+    dataspecter.write(spec, out_dir=tmp_path, format="csv", seed=3)
+    dataspecter.write(spec, out_dir=tmp_path, format="json", seed=3)
+
+    csv_lines = (tmp_path / "item.csv").read_text(encoding="utf-8").splitlines()[1:]
+    assert {line.split(",")[0] for line in csv_lines} == {"FRIEND10", ""}
+    records = json.loads((tmp_path / "item.json").read_text(encoding="utf-8"))
+    assert {record["code"] for record in records} == {"FRIEND10", None}
+    assert {record["level"] for record in records} == {1, 2}
+    assert all(type(record["level"]) is int for record in records)

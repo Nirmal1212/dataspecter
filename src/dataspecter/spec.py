@@ -26,6 +26,15 @@ _NAME_RULE = (
     "names must start with a letter or underscore and contain only letters, digits and underscores"
 )
 _WEIGHT_RULE = "weights must be non-negative numbers with a sum greater than zero"
+_VALUE_TYPES = ("string", "integer", "float", "boolean")
+_SEPARATOR = "||"
+_NUMBER_PATTERN = r"-?(?:\d+(?:\.\d+)?|\.\d+)"  # plain decimal; ".9" allowed, "1e3" is not
+_NUMBER = re.compile(_NUMBER_PATTERN)
+_INTEGER = re.compile(r"-?\d+")
+_RANGE = re.compile(
+    rf"\s*({_NUMBER_PATTERN})\s+to\s+({_NUMBER_PATTERN})\s*\|\|\s*({_NUMBER_PATTERN})\s*"
+)
+_RANGE_FORM = "'min to max || weight', for example '18 to 35 || 0.7'"
 _REFERENCE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)")
 _BAD = object()  # a key that was present but invalid, and has already been reported
 
@@ -254,6 +263,11 @@ def _reference_parts(raw: Any) -> tuple[str, str] | None:
     return (match[1], match[2]) if match else None
 
 
+def _number(text: str) -> int | float:
+    """Read a number matched by `_NUMBER`: an integer unless it has a decimal point."""
+    return float(text) if "." in text else int(text)
+
+
 def _listed(items: Any) -> str:
     return ", ".join(sorted(items))
 
@@ -419,8 +433,18 @@ def _ranges(
     weights: list[Any] = []
     for index, item in enumerate(raw):
         item_path = f"{path}[{index}]"
+        if isinstance(item, str):
+            match = _RANGE.fullmatch(item)
+            if match is None:
+                message = f"{item!r} is not a range; the expected form is {_RANGE_FORM}"
+                problems.append(Problem(item_path, message))
+                weights.append(_BAD)
+                continue
+            low, high, weight = (_number(part) for part in match.groups())
+            item = {"min": low, "max": high, "weight": weight}
         if not isinstance(item, Mapping):
-            problems.append(Problem(item_path, "must be a mapping with min, max and weight"))
+            message = f"must be a mapping with min, max and weight, or a string {_RANGE_FORM}"
+            problems.append(Problem(item_path, message))
             weights.append(_BAD)
             continue
         _unknown_keys(item, frozenset({"min", "max", "weight"}), item_path, problems)
@@ -463,15 +487,40 @@ def _choice(raw, path, problems, common):
     values = _read(
         raw,
         "values",
-        lambda v: isinstance(v, list) and bool(v) and all(map(_is_scalar, v)),
-        "a non-empty list of strings, numbers or booleans",
+        lambda v: isinstance(v, list) and bool(v) and all(x is None or _is_scalar(x) for x in v),
+        "a non-empty list of strings, numbers, booleans or nulls",
         path,
         problems,
     )
     weights = _read(
         raw, "weights", lambda v: isinstance(v, list), "a list of numbers", path, problems
     )
-    if _usable(weights):
+    value_type = _read(
+        raw,
+        "value_type",
+        lambda v: isinstance(v, str) and v in _VALUE_TYPES,
+        f"one of {', '.join(_VALUE_TYPES)}",
+        path,
+        problems,
+        default="string",
+    )
+
+    # With `weights` declared every entry is literal, which is how text containing "||" is written.
+    inline = (
+        "weights" not in raw
+        and _usable(values)
+        and any(isinstance(entry, str) and _SEPARATOR in entry for entry in values)
+    )
+    if inline:
+        if value_type is not _BAD:
+            values, weights = _inline_weights(values, value_type, _at(path, "values"), problems)
+    elif "value_type" in raw and value_type is not _BAD:
+        message = (
+            "applies only to values written with inline weights ('value || weight'); "
+            "values in a plain list already have their types"
+        )
+        problems.append(Problem(_at(path, "value_type"), message))
+    elif _usable(weights):
         weights_path = _at(path, "weights")
         if _usable(values) and len(weights) != len(values):
             message = (
@@ -488,6 +537,58 @@ def _choice(raw, path, problems, common):
     return ChoiceField(
         values=tuple(values), weights=tuple(weights) if weights is not None else None, **common
     )
+
+
+def _inline_weights(
+    entries: list[Any], value_type: str, path: str, problems: list[Problem]
+) -> tuple[list[Any], list[Any]]:
+    """Split ``value || weight`` entries into values, converted to `value_type`, and weights."""
+    literal_hint = "to use '||' as plain text, declare 'weights' so every value is taken literally"
+    if not all(isinstance(entry, str) and _SEPARATOR in entry for entry in entries):
+        message = (
+            f"either every value carries a weight ('value || weight') or none does; {literal_hint}"
+        )
+        problems.append(Problem(path, message))
+        return [], []
+
+    values: list[Any] = []
+    weights: list[Any] = []
+    for index, entry in enumerate(entries):
+        entry_path = f"{path}[{index}]"
+        text, _, weight_text = (part.strip() for part in entry.rpartition(_SEPARATOR))
+        if _NUMBER.fullmatch(weight_text):
+            weights.append(_number(weight_text))
+        else:
+            message = (
+                f"{entry!r}: the weight after '||' must be a non-negative number, "
+                f"got {weight_text!r}; {literal_hint}"
+            )
+            problems.append(Problem(entry_path, message))
+            weights.append(_BAD)
+        values.append(_convert(text, value_type, entry_path, problems))
+    _check_weights(weights, path, problems)
+    return values, weights
+
+
+def _convert(text: str, value_type: str, path: str, problems: list[Problem]) -> Any:
+    """Convert the text of an inline value to its declared type. An empty value is null.
+
+    The text is matched against fixed patterns and never evaluated, so a spec cannot run code.
+    """
+    if text == "":
+        return None
+    if value_type == "string":
+        return text
+    if value_type == "integer" and _INTEGER.fullmatch(text):
+        return int(text)
+    if value_type == "float" and _NUMBER.fullmatch(text):
+        return float(text)
+    if value_type == "boolean" and text in ("true", "false"):
+        return text == "true"
+    expected = "true or false" if value_type == "boolean" else f"a valid {value_type}"
+    message = f"{text!r} is not {expected} (the field declares value_type: {value_type})"
+    problems.append(Problem(path, message))
+    return _BAD
 
 
 def _parse_date(value: Any) -> date | None:
@@ -592,7 +693,7 @@ _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
     "integer": (_NUMERIC_KEYS, _integer),
     "float": (_NUMERIC_KEYS | {"precision"}, _float),
     "boolean": (frozenset({"true_probability"}), _boolean),
-    "choice": (frozenset({"values", "weights"}), _choice),
+    "choice": (frozenset({"values", "weights", "value_type"}), _choice),
     "date": (frozenset({"min", "max"}), _date),
     "datetime": (frozenset({"min", "max"}), _datetime),
     "sequence": (frozenset({"start", "step"}), _sequence),
