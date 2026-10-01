@@ -8,26 +8,17 @@
       "fields": {
         "id": { "type": "sequence", "start": 1001 },
         "external_ref": { "type": "uuid" },
-        "tier": {
-          "type": "choice",
-          "values": ["free", "pro", "enterprise"],
-          "weights": [70, 25, 5]
-        },
+        "tier": { "type": "choice", "values": ["free || 70", "pro || 25", "enterprise || 5"] },
         "age": {
           "type": "integer",
-          "ranges": [
-            { "min": 18, "max": 35, "weight": 0.7 },
-            { "min": 36, "max": 60, "weight": 0.25 },
-            { "min": 61, "max": 90, "weight": 0.05 }
-          ]
+          "ranges": ["18 to 35 || 0.7", "36 to 60 || 0.25", "61 to 90 || 0.05"]
         },
         "country": { "type": "choice", "values": ["IN", "US", "GB", "DE"] },
         "marketing_opt_in": { "type": "boolean", "true_probability": 0.3 },
         "signup_date": { "type": "date", "min": "2022-01-01", "max": "2025-12-31" },
         "referral_code": {
           "type": "choice",
-          "values": ["FRIEND10", "LAUNCH25", "PARTNER"],
-          "null_probability": 0.8
+          "values": ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"]
         }
       }
     },
@@ -53,11 +44,11 @@
       "count": 5000,
       "fields": {
         "id": { "type": "uuid" },
-        "customer_id": { "type": "reference", "entity": "customer", "field": "id" },
+        "customer_id": "$customer.id",
+        "customer_tier": "$customer.tier",
         "status": {
           "type": "choice",
-          "values": ["delivered", "shipped", "pending", "cancelled"],
-          "weights": [0.75, 0.12, 0.08, 0.05]
+          "values": ["delivered || 0.75", "shipped || 0.12", "pending || 0.08", "cancelled || 0.05"]
         },
         "placed_at": {
           "type": "datetime",
@@ -70,18 +61,19 @@
     "order_item": {
       "count": 12000,
       "fields": {
-        "id": { "type": "sequence", "start": 1, "step": 1 },
-        "order_id": { "type": "reference", "entity": "order", "field": "id" },
-        "product_id": { "type": "reference", "entity": "product", "field": "id" },
+        "id": { "type": "sequence" },
+        "order_id": "$order.id",
+        "product_id": "$product.id",
+        "unit_price": "$product.price",
         "quantity": {
           "type": "integer",
-          "ranges": [
-            { "min": 1, "max": 1, "weight": 60 },
-            { "min": 2, "max": 3, "weight": 30 },
-            { "min": 4, "max": 10, "weight": 10 }
-          ]
+          "ranges": ["1 to 1 || 60", "2 to 3 || 30", "4 to 10 || 10"]
         },
-        "unit_price": { "type": "float", "min": 5, "max": 200, "precision": 2 }
+        "gift_wrap_level": {
+          "type": "choice",
+          "value_type": "integer",
+          "values": ["0 || 80", "1 || 15", "2 || 5"]
+        }
       }
     }
   }
