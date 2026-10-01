@@ -51,8 +51,8 @@
 
 ## 8. Examples and documentation
 
-- [ ] 8.1 Add `examples/shop.yaml` (customer, order and order_item with references, weighted ranges, a normal field, weighted choice and nulls) and its JSON equivalent, and verify with a test that both validate and produce identical data for the same seed
-- [ ] 8.2 Document installation, a quick start, the CLI and the Python API in `README.md`, add `docs/spec-reference.md` covering every field type and option, and verify that each documented command runs as written against `examples/shop.yaml`
+- [x] 8.1 Add `examples/shop.yaml` (customer, order and order_item with references, weighted ranges, a normal field, weighted choice and nulls) and its JSON equivalent, and verify with a test that both validate and produce identical data for the same seed
+- [x] 8.2 Document installation, a quick start, the CLI and the Python API in `README.md`, add `docs/spec-reference.md` covering every field type and option, and verify that each documented command runs as written against `examples/shop.yaml`
 
 ## 9. Integration and wrap-up
 
