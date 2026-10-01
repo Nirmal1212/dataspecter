@@ -121,6 +121,8 @@ Existing files are overwritten without prompting. Generation is reproducible and
 
 `argparse` covers two subcommands and three options without adding a dependency. `cli.py` parses arguments, calls the public API, prints the summary, and maps `SpecError` and unreadable spec files to exit code 2, anything else to exit code 1. `argparse` already exits with 2 on bad arguments, which matches the spec.
 
+A `__main__.py` makes `python -m dataspecter` equivalent to the installed command. Some machines block freshly generated launcher executables under an application control policy, and this gives those users a way to run the tool.
+
 *Alternative considered:* Typer or Click. Nicer help output, but not worth a dependency at this size.
 
 ### 8. Public API surface
@@ -136,7 +138,7 @@ Arguments passed to `write` override the spec's `output` block; the `output` blo
 
 ## Risks / Trade-offs
 
-- **Pure-Python generation is slow for very large runs** → Acceptable for this change. A throughput measurement is recorded in the tasks so the starting point is known, and decision 3 leaves room for vectorised generators.
+- **Pure-Python generation is slow for very large runs** → Acceptable for this change, and decision 3 leaves room for vectorised generators. Measured baseline (five-field entity to CSV, Python 3.12, Windows laptop): one million rows in 13.9 s, about 72,000 rows per second, producing a 44 MB file. Peak traced memory was 0.19 MB at 10 thousand, 100 thousand and one million rows alike, so memory does not grow with row count.
 - **Referenced columns are held in memory** → Only the referenced fields are kept, not whole rows; ten million integer keys is tens of megabytes. Documented as a known limit.
 - **Statistical scenarios can fail by chance** → Tests use a fixed seed, so they are deterministic; the tolerances in the specs are roughly ten standard errors wide, so they hold for any reasonable seed.
 - **Uniform reference selection is not realistic for many datasets** (most customers have few orders, a few have many) → Out of scope here and listed in the proposal as a follow-up; the reference field model can gain a distribution option without a breaking change.

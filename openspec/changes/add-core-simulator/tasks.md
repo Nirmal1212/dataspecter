@@ -56,8 +56,8 @@
 
 ## 9. Integration and wrap-up
 
-- [ ] 9.1 Run the installed `dataspecter generate examples/shop.yaml` in all three formats and verify the files open correctly and every reference resolves
-- [ ] 9.2 Generate one million rows of a five-field entity to CSV, record the time and peak memory in the pull request description, and verify memory stays flat as the row count grows
-- [ ] 9.3 Verify `uv run pytest`, `uv run ruff check .` and `openspec validate add-core-simulator --strict` all pass
-- [ ] 9.4 Add the entry for this change under `[Unreleased]` in `CHANGELOG.md` and verify it lists the spec format, generation, export formats, CLI and Python API
+- [x] 9.1 Run the installed `dataspecter generate examples/shop.yaml` in all three formats and verify the files open correctly and every reference resolves
+- [x] 9.2 Generate one million rows of a five-field entity to CSV, record the time and peak memory in the pull request description, and verify memory stays flat as the row count grows
+- [x] 9.3 Verify `uv run pytest`, `uv run ruff check .` and `openspec validate add-core-simulator --strict` all pass
+- [x] 9.4 Add the entry for this change under `[Unreleased]` in `CHANGELOG.md` and verify it lists the spec format, generation, export formats, CLI and Python API
 - [ ] 9.5 Archive the change with `/opsx:archive` and verify `openspec/specs/` contains the five new capability specs
