@@ -9,11 +9,11 @@
 
 ## 2. Spec model and validation
 
-- [ ] 2.1 Add `errors.py` with `SpecError` (list of problems, each with a dotted location path and message) and `ExportError`, and verify with a unit test that a `SpecError` exposes its problems and renders them one per line
-- [ ] 2.2 Implement the frozen dataclasses in `spec.py` for the top-level spec, entities, `output` and each of the ten field types, and the validator that builds them from a raw mapping while collecting located problems, with a table of allowed keys per field type and strict type checks (no string-to-number coercion, booleans rejected as numbers); verify with tests for a minimal valid spec, unsupported version, empty entities, unknown key, invalid name and unknown field type
-- [ ] 2.3 Add the single-field rules (min not above max, uniform needs min and max, normal needs mean and positive stddev, `ranges` exclusive with min/max, weight rules, weights matching values, date ordering, non-zero step, probabilities in 0 to 1) and verify each with a test taken from the `simulation-spec` scenarios
-- [ ] 2.4 Add the cross-entity pass (reference target entity and field exist, no self-reference, no cycles) and verify with tests for a valid forward reference, unknown entity, unknown field and a two-entity cycle
-- [ ] 2.5 Implement `load_spec` for a path (`.yaml`, `.yml`, `.json`) and for a mapping, converting every failure into `SpecError`; verify with tests for YAML, JSON, mapping, unsupported extension, malformed syntax, missing file, and two problems reported together with their paths
+- [x] 2.1 Add `errors.py` with `SpecError` (list of problems, each with a dotted location path and message) and `ExportError`, and verify with a unit test that a `SpecError` exposes its problems and renders them one per line
+- [x] 2.2 Implement the frozen dataclasses in `spec.py` for the top-level spec, entities, `output` and each of the ten field types, and the validator that builds them from a raw mapping while collecting located problems, with a table of allowed keys per field type and strict type checks (no string-to-number coercion, booleans rejected as numbers); verify with tests for a minimal valid spec, unsupported version, empty entities, unknown key, invalid name and unknown field type
+- [x] 2.3 Add the single-field rules (min not above max, uniform needs min and max, normal needs mean and positive stddev, `ranges` exclusive with min/max, weight rules, weights matching values, date ordering, non-zero step, probabilities in 0 to 1) and verify each with a test taken from the `simulation-spec` scenarios
+- [x] 2.4 Add the cross-entity pass (reference target entity and field exist, no self-reference, no cycles) and verify with tests for a valid forward reference, unknown entity, unknown field and a two-entity cycle
+- [x] 2.5 Implement `load_spec` for a path (`.yaml`, `.yml`, `.json`) and for a mapping, converting every failure into `SpecError`; verify with tests for YAML, JSON, mapping, unsupported extension, malformed syntax, missing file, and two problems reported together with their paths
 
 ## 3. Value generators
 

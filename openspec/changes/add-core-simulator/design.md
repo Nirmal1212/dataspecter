@@ -33,7 +33,7 @@ Each dependency was evaluated against what this change actually needs:
 
 | Dependency | Kind | Verdict | Reason |
 |---|---|---|---|
-| PyYAML | runtime | **Keep** | YAML specs are a requirement and the standard library has no YAML parser. Pure-Python fallback, no dependencies of its own. Only `yaml.safe_load` is used. |
+| PyYAML | runtime | **Keep** | YAML specs are a requirement and the standard library has no YAML parser. Pure-Python fallback, no dependencies of its own. Only safe loading is used. |
 | pydantic | runtime | **Drop** | See decision 2. It would bring a compiled core and three further packages to validate a format with ten field types, and would pin every host project to a pydantic major version. |
 | NumPy | runtime | **Not added** | See decision 3. The standard library's `random` covers every distribution in scope. |
 | Click / Typer | runtime | **Not added** | See decision 7. `argparse` covers two subcommands and three options. |
@@ -141,6 +141,6 @@ Arguments passed to `write` override the spec's `output` block; the `output` blo
 - **Statistical scenarios can fail by chance** → Tests use a fixed seed, so they are deterministic; the tolerances in the specs are roughly ten standard errors wide, so they hold for any reasonable seed.
 - **Uniform reference selection is not realistic for many datasets** (most customers have few orders, a few have many) → Out of scope here and listed in the proposal as a follow-up; the reference field model can gain a distribution option without a breaking change.
 - **Hand-written validation is more code to get right than a validation library** → Roughly 300 lines, covered scenario by scenario from the `simulation-spec` delta; the table of allowed keys per field type keeps the common mistakes (typos, misplaced keys) in one code path.
-- **YAML parses unquoted dates into date objects, JSON keeps strings** → The validator accepts both forms and normalises them, and a test confirms YAML and JSON specs produce identical data.
+- **YAML parses unquoted dates into date objects, JSON keeps strings**, and YAML raises a bare error with no location on an impossible date such as `2024-13-01` → Specs are loaded with a `SafeLoader` subclass that has the timestamp resolver removed, so dates arrive as strings from both formats and the validator parses and reports them. Date objects are still accepted when a caller passes a mapping. A test confirms YAML and JSON specs load identically.
 - **YAML 1.1 reads unquoted `yes`, `no`, `on` and `off` as booleans**, which can surprise in `choice` values (a country code `NO` becomes `false`) → Documented in the spec reference with the advice to quote such strings.
 - **The name `dataspecter` has not been checked on PyPI** → Publishing is out of scope; check before the first release.
