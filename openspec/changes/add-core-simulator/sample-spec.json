@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "seed": 42,
+  "output": { "format": "csv", "dir": "output/shop" },
+  "entities": {
+    "customer": {
+      "count": 1000,
+      "fields": {
+        "id": { "type": "sequence", "start": 1001 },
+        "external_ref": { "type": "uuid" },
+        "tier": {
+          "type": "choice",
+          "values": ["free", "pro", "enterprise"],
+          "weights": [70, 25, 5]
+        },
+        "age": {
+          "type": "integer",
+          "ranges": [
+            { "min": 18, "max": 35, "weight": 0.7 },
+            { "min": 36, "max": 60, "weight": 0.25 },
+            { "min": 61, "max": 90, "weight": 0.05 }
+          ]
+        },
+        "country": { "type": "choice", "values": ["IN", "US", "GB", "DE"] },
+        "marketing_opt_in": { "type": "boolean", "true_probability": 0.3 },
+        "signup_date": { "type": "date", "min": "2022-01-01", "max": "2025-12-31" },
+        "referral_code": {
+          "type": "choice",
+          "values": ["FRIEND10", "LAUNCH25", "PARTNER"],
+          "null_probability": 0.8
+        }
+      }
+    },
+    "product": {
+      "count": 50,
+      "fields": {
+        "id": { "type": "sequence" },
+        "category": { "type": "choice", "values": ["books", "games", "music", "tools"] },
+        "price": {
+          "type": "float",
+          "distribution": "normal",
+          "mean": 40,
+          "stddev": 15,
+          "min": 5,
+          "max": 200,
+          "precision": 2
+        },
+        "currency": { "type": "constant", "value": "EUR" },
+        "in_stock": { "type": "boolean", "true_probability": 0.9 }
+      }
+    },
+    "order": {
+      "count": 5000,
+      "fields": {
+        "id": { "type": "uuid" },
+        "customer_id": { "type": "reference", "entity": "customer", "field": "id" },
+        "status": {
+          "type": "choice",
+          "values": ["delivered", "shipped", "pending", "cancelled"],
+          "weights": [0.75, 0.12, 0.08, 0.05]
+        },
+        "placed_at": {
+          "type": "datetime",
+          "min": "2025-01-01T00:00:00",
+          "max": "2025-12-31T23:59:59"
+        },
+        "discount_pct": { "type": "integer", "min": 5, "max": 30, "null_probability": 0.6 }
+      }
+    },
+    "order_item": {
+      "count": 12000,
+      "fields": {
+        "id": { "type": "sequence", "start": 1, "step": 1 },
+        "order_id": { "type": "reference", "entity": "order", "field": "id" },
+        "product_id": { "type": "reference", "entity": "product", "field": "id" },
+        "quantity": {
+          "type": "integer",
+          "ranges": [
+            { "min": 1, "max": 1, "weight": 60 },
+            { "min": 2, "max": 3, "weight": 30 },
+            { "min": 4, "max": 10, "weight": 10 }
+          ]
+        },
+        "unit_price": { "type": "float", "min": 5, "max": 200, "precision": 2 }
+      }
+    }
+  }
+}
