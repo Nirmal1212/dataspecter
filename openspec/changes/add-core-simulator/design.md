@@ -107,11 +107,11 @@ Integer fields round the drawn value to the nearest whole number before the boun
 
 ### 6. Exporters share one interface and write incrementally
 
-An exporter is opened with a path and the field names, receives rows one at a time, and is closed. A registry maps `csv`, `json` and `jsonl` to their exporter and file extension.
+A writer is a function that takes an open file, the field names and an iterator of rows, writes each row as it arrives, and returns the row count. A registry maps `csv`, `json` and `jsonl` to their writer; the format name is also the file extension. One `export` function opens the file, calls the writer and turns any `OSError` into an `ExportError` naming the path.
 
 - CSV uses the `csv` module with `lineterminator="\n"` and minimal quoting, which follows RFC 4180 quoting rules.
 - JSON writes `[`, then comma-separated objects, then `]`, so the array is produced without holding the rows.
-- One function converts a Python value to its serialised form (ISO 8601 for dates, `true`/`false` and empty string for CSV), shared by the formats that need it.
+- Value conversion is one small function per target: CSV maps null to an empty field, booleans to `true`/`false` and dates to ISO 8601; JSON and JSON Lines share a function that only has to convert dates, since `json` handles the rest.
 
 Files are opened with `encoding="utf-8"` and `newline=""`, so output is byte-identical on Windows, macOS and Linux. That matters both for reproducibility and for the requirement that the API and the CLI produce identical files.
 

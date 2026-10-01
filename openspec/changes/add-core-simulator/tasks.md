@@ -32,10 +32,10 @@
 
 ## 5. File export
 
-- [ ] 5.1 Implement the exporter interface, the format registry and the shared value serialiser, and verify with unit tests that dates, date-times, booleans and nulls serialise as the `file-export` spec requires
-- [ ] 5.2 Implement the CSV exporter and verify with tests for the header row, line count, quoting of a value containing a comma, an empty field for null, and LF line endings
-- [ ] 5.3 Implement the JSON and JSON Lines exporters, writing incrementally, and verify with tests that the JSON file parses as an array of the right length with native types, and that each JSON Lines line parses on its own
-- [ ] 5.4 Implement output directory creation, per-entity file naming, overwrite, and `ExportError` on write failure; verify with tests for a nested directory that does not exist, replacement of an existing file, and an unwritable path
+- [x] 5.1 Implement the exporter interface, the format registry and the shared value serialiser, and verify with unit tests that dates, date-times, booleans and nulls serialise as the `file-export` spec requires
+- [x] 5.2 Implement the CSV exporter and verify with tests for the header row, line count, quoting of a value containing a comma, an empty field for null, and LF line endings
+- [x] 5.3 Implement the JSON and JSON Lines exporters, writing incrementally, and verify with tests that the JSON file parses as an array of the right length with native types, and that each JSON Lines line parses on its own
+- [x] 5.4 Implement output directory creation, per-entity file naming, overwrite, and `ExportError` on write failure; verify with tests for a nested directory that does not exist, replacement of an existing file, and an unwritable path
 
 ## 6. Python API
 
