@@ -6,18 +6,30 @@ import secrets
 from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
-from dataspecter.generators import Generator, RowPick, field_generator, stream
-from dataspecter.paths import copy_value, reader
+from dataspecter.generators import (
+    Generator,
+    RowPick,
+    field_generator,
+    stream,
+    template_renderer,
+)
+from dataspecter.paths import copy_value, reader, remove
 from dataspecter.spec import (
     Entity,
     Field,
     ObjectField,
+    Placeholder,
     ReferenceField,
     Spec,
+    TemplateField,
     follow,
+    hidden_paths,
     iter_fields,
     leaf_paths,
 )
+
+# A step run on a record after its other fields exist: (path, function taking the record).
+Finisher = tuple[str, Callable[[dict[str, Any]], None]]
 
 # The picks of one entity, keyed by (target entity, link).
 Picks = dict[tuple[str, str | None], RowPick]
@@ -136,21 +148,40 @@ class Simulation:
         return field_generator(field, self.seed, entity.name, path, read)
 
     def _builder(
-        self, entity: Entity, fields: Mapping[str, Field], prefix: str, picks: Picks
+        self,
+        entity: Entity,
+        fields: Mapping[str, Field],
+        prefix: str,
+        picks: Picks,
+        templates: list[tuple[str, TemplateField]],
     ) -> Callable[[], dict[str, Any]]:
-        """Return a function building one record, or one object inside it, per call."""
+        """Return a function building one record, or one object inside it, per call.
+
+        Templates are left as None and listed in `templates`; they are filled in once the
+        fields they read exist.
+        """
         steps: list[tuple[str, Generator]] = []
         for name, field in fields.items():
             path = f"{prefix}{name}"
             if isinstance(field, ObjectField):
-                make = self._object(entity, path, field, picks)
+                make = self._object(entity, path, field, picks, templates)
+            elif isinstance(field, TemplateField):
+                templates.append((path, field))
+                make = _nothing
             else:
                 make = self._generator(entity, path, field, picks)
             steps.append((name, make))
         return lambda: {name: make() for name, make in steps}
 
-    def _object(self, entity: Entity, path: str, field: ObjectField, picks: Picks) -> Generator:
-        build = self._builder(entity, field.fields, f"{path}.", picks)
+    def _object(
+        self,
+        entity: Entity,
+        path: str,
+        field: ObjectField,
+        picks: Picks,
+        templates: list[tuple[str, TemplateField]],
+    ) -> Generator:
+        build = self._builder(entity, field.fields, f"{path}.", picks, templates)
         if field.null_probability <= 0:
             return build
         nulls = stream(self.seed, entity.name, path, "null")
@@ -159,22 +190,98 @@ class Simulation:
         # not cost a full address on every row.
         return lambda: None if nulls.random() < probability else build()
 
+    def _finishers(self, entity: Entity, templates: list[tuple[str, TemplateField]]) -> list:
+        """Return the steps that fill in templates, each after the templates it reads."""
+        by_path = dict(templates)
+        ordered: list[str] = []
+
+        def visit(path: str) -> None:
+            if path in ordered:
+                return
+            for part in by_path[path].parts:
+                if isinstance(part, Placeholder) and part.target in by_path:
+                    visit(part.target)
+            ordered.append(path)
+
+        for path in by_path:
+            visit(path)
+
+        steps = []
+        for path in ordered:
+            render = template_renderer(by_path[path], self.seed, entity.name, path)
+            steps.append(_setter(path, render))
+        return steps
+
     def _rows(self, entity: Entity) -> Iterator[dict[str, Any]]:
         picks = self._picks(entity)
-        build = self._builder(entity, entity.fields, "", picks)
+        templates: list[tuple[str, TemplateField]] = []
+        build = self._builder(entity, entity.fields, "", picks, templates)
+        finishers = self._finishers(entity, templates)
+        hidden = [path for path, field in iter_fields(entity.fields) if field.hidden]
         # Collect referenced paths in passing, so a later entity need not regenerate them.
         wanted = sorted(
             path
             for name, path in self._referenced
             if name == entity.name and (name, path) not in self._columns
         )
-        collecting = [(path, reader(path), []) for path in wanted]
+        collecting = [(path, self._collector(entity, path), []) for path in wanted]
         for _ in range(entity.count):
             for pick in picks.values():
                 pick.advance()
             row = build()
-            for _, read, column in collecting:
-                column.append(copy_value(read(row)))
+            for finish in finishers:
+                finish(row)
+            for _, collect, column in collecting:
+                column.append(collect(row))
+            for path in hidden:
+                remove(row, path)
             yield row
         for path, _, column in collecting:
             self._columns[entity.name, path] = column
+
+    def _collector(self, entity: Entity, path: str) -> Callable[[dict[str, Any]], Any]:
+        """Return a function reading the value other entities will copy from `path`.
+
+        The value is copied, so that a caller editing the record cannot change what later
+        records copy, and hidden fields inside a copied object are dropped.
+        """
+        read = reader(path)
+        fields: Mapping[str, Field] = entity.fields
+        field: Field | None = None
+        for segment in path.split("."):
+            field = fields[segment]
+            target = follow(self.spec, field)
+            fields = target.fields if isinstance(target, ObjectField) else {}
+        inner_hidden = hidden_paths(self.spec, field)
+
+        def collect(row: dict[str, Any]) -> Any:
+            value = copy_value(read(row))
+            if isinstance(value, dict):
+                for hidden in inner_hidden:
+                    remove(value, hidden)
+            return value
+
+        return collect
+
+
+def _nothing() -> None:
+    return None
+
+
+def _setter(path: str, render: Callable[[dict[str, Any]], Any]) -> Callable[[dict[str, Any]], None]:
+    """Return a function that renders a template and stores it at `path` in the record."""
+    *parents, name = path.split(".")
+    if not parents:
+
+        def set_top(row: dict[str, Any]) -> None:
+            row[name] = render(row)
+
+        return set_top
+    read_parent = reader(".".join(parents))
+
+    def set_nested(row: dict[str, Any]) -> None:
+        parent = read_parent(row)
+        if parent is not None:  # the object holding the template is null for this record
+            parent[name] = render(row)
+
+    return set_nested

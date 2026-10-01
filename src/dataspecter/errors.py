@@ -35,6 +35,10 @@ class SpecError(DataspecterError):
         super().__init__("\n".join(str(problem) for problem in self.problems))
 
 
+class GenerationError(DataspecterError):
+    """Generation had to stop, for example because a unique field ran out of unused values."""
+
+
 class ExportError(DataspecterError):
     """An output file or directory could not be written."""
 

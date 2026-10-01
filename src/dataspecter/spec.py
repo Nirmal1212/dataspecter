@@ -7,7 +7,7 @@ import math
 import os
 import re
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from datetime import date, datetime
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
@@ -43,6 +43,9 @@ _PATH_PATTERN = rf"{_NAME_PATTERN}(?:\.{_NAME_PATTERN})*"
 _PATH = re.compile(_PATH_PATTERN)
 _REFERENCE = re.compile(rf"\$({_NAME_PATTERN})\.({_PATH_PATTERN})")
 _BAD = object()  # a key that was present but invalid, and has already been reported
+FILTERS = ("lower", "upper", "title", "ascii", "slug")
+_PATTERN_KINDS = {"#": "digit", "%": "nonzero", "?": "letter"}
+_PLACEHOLDER = re.compile(rf"\s*(\^*)\s*({_PATH_PATTERN})\s*((?:\|\s*[A-Za-z_]+\s*)*)")
 
 
 # --- data model -------------------------------------------------------------------------------
@@ -58,6 +61,8 @@ class WeightedRange:
 @dataclass(frozen=True, kw_only=True)
 class _Field:
     null_probability: float = 0.0
+    hidden: bool = False
+    unique: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -140,6 +145,31 @@ class ObjectField(_Field):
     fields: Mapping[str, Any]
 
 
+@dataclass(frozen=True, kw_only=True)
+class PatternField(_Field):
+    type: ClassVar[str] = "pattern"
+    pattern: str
+    # (kind, text) pairs: kind is "literal", "digit", "nonzero" or "letter".
+    segments: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
+class Placeholder:
+    """A ``{path|filter}`` in a template. `target` is the path from the entity down."""
+
+    up: int
+    path: str
+    filters: tuple[str, ...]
+    target: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class TemplateField(_Field):
+    type: ClassVar[str] = "template"
+    template: str
+    parts: tuple[str | Placeholder, ...]
+
+
 Field = (
     IntegerField
     | FloatField
@@ -152,6 +182,8 @@ Field = (
     | ConstantField
     | ReferenceField
     | ObjectField
+    | PatternField
+    | TemplateField
 )
 
 
@@ -710,16 +742,178 @@ def _reference(raw, path, problems, common):
     return ReferenceField(entity=entity, field=field, link=link, **common)
 
 
+def compile_pattern(pattern: str) -> tuple[tuple[tuple[str, str], ...] | None, str | None]:
+    """Compile a pattern into (kind, text) segments, or return None and what is wrong with it.
+
+    Text in square brackets is literal. Brackets are used instead of backslash escapes because
+    a backslash is read differently by YAML single quotes, YAML double quotes and JSON.
+    """
+    segments: list[tuple[str, str]] = []
+    literal: list[str] = []
+
+    def flush() -> None:
+        if literal:
+            segments.append(("literal", "".join(literal)))
+            literal.clear()
+
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "[":
+            end = pattern.find("]", index + 1)
+            if end == -1:
+                return None, "a '[' is not closed; write a literal '[' as '[[]'"
+            literal.append(pattern[index + 1 : end])
+            index = end + 1
+            continue
+        if char in _PATTERN_KINDS:
+            flush()
+            segments.append((_PATTERN_KINDS[char], ""))
+        else:
+            literal.append(char)
+        index += 1
+    flush()
+    return tuple(segments), None
+
+
+def _pattern(raw, path, problems, common):
+    pattern = _read(
+        raw,
+        "pattern",
+        lambda v: isinstance(v, str) and v != "",
+        "a non-empty string",
+        path,
+        problems,
+    )
+    if "pattern" not in raw:
+        problems.append(Problem(path, "a pattern is required, for example pattern: 'SKU-??-####'"))
+        return None
+    if pattern is _BAD:
+        return None
+    segments, error = compile_pattern(pattern)
+    if error:
+        problems.append(Problem(_at(path, "pattern"), error))
+        return None
+    return PatternField(pattern=pattern, segments=segments, **common)
+
+
 @dataclass
 class _Context:
     """What the field parsers need to know about where they are."""
 
     entity: Any
-    # Every reference found, as (entity, problem path, field), for the cross-entity pass.
-    references: list[tuple[Any, str, ReferenceField]] = dataclass_field(default_factory=list)
+    # Every reference found, as (entity, problem path, field, note), for the cross-entity pass.
+    # The note names the custom type the field came from, if any, for use in messages.
+    references: list[tuple[Any, str, ReferenceField, str]] = dataclass_field(default_factory=list)
+    # Every template found, as (entity, problem path, path in the entity, field, note).
+    templates: list[tuple[Any, str, str, TemplateField, str]] = dataclass_field(
+        default_factory=list
+    )
+    types: Mapping[str, Any] = dataclass_field(default_factory=dict)  # usable raw definitions
+    broken: set[str] = dataclass_field(default_factory=set)  # types reported at their declaration
+    expanding: tuple[str, ...] = ()  # custom types being expanded, outermost first
+    declaring: str | None = None  # the custom type being validated on its own, if any
 
 
-def _object(raw, path, problems, common, ctx: _Context, depth: int):
+def _via(ctx: _Context) -> str:
+    """Text naming the custom type a field is being expanded from, to append to a message."""
+    return f" (in custom type {ctx.expanding[0]!r})" if ctx.expanding else ""
+
+
+def _scan_template(text: str) -> tuple[list[Any] | None, str | None]:
+    """Split a template into literal text and (ups, path, filters) placeholders.
+
+    The grammar is fixed: a placeholder is a path of names with optional filters. Nothing is
+    evaluated, and `str.format` is not used because it allows attribute and index access.
+    """
+    parts: list[Any] = []
+    literal: list[str] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if text.startswith(("{{", "}}"), index):
+            literal.append(char)
+            index += 2
+        elif char == "}":
+            return None, "a '}' has no matching '{'; write a literal brace as '}}'"
+        elif char == "{":
+            end = text.find("}", index + 1)
+            if end == -1:
+                return None, "a '{' is not closed; write a literal brace as '{{'"
+            inner = text[index + 1 : end]
+            match = _PLACEHOLDER.fullmatch(inner)
+            if match is None:
+                message = (
+                    f"malformed placeholder {{{inner}}}; expected {{field}}, {{object.field}}, "
+                    "{^outer_field} or {field|filter}"
+                )
+                return None, message
+            filters = tuple(name.strip() for name in match[3].split("|")[1:])
+            unknown = [name for name in filters if name not in FILTERS]
+            if unknown:
+                supported = ", ".join(FILTERS)
+                return None, f"unknown filter {unknown[0]!r}; supported filters: {supported}"
+            if literal:
+                parts.append("".join(literal))
+                literal.clear()
+            parts.append((len(match[1]), match[2], filters))
+            index = end + 1
+        else:
+            literal.append(char)
+            index += 1
+    if literal:
+        parts.append("".join(literal))
+    return parts, None
+
+
+def _template(raw, path, problems, common, ctx: _Context, depth: int, data_path: str):
+    template = _read(
+        raw,
+        "template",
+        lambda v: isinstance(v, str) and v != "",
+        "a non-empty string",
+        path,
+        problems,
+    )
+    if "template" not in raw:
+        problems.append(
+            Problem(path, "a template is required, for example template: '{id}-{tier}'")
+        )
+        return None
+    if template is _BAD:
+        return None
+    scanned, error = _scan_template(template)
+    if error:
+        problems.append(Problem(_at(path, "template"), error))
+        return None
+
+    scope = data_path.split(".")[:-1]  # the object, or entity, that contains this template
+    parts: list[str | Placeholder] = []
+    for part in scanned:
+        if isinstance(part, str):
+            parts.append(part)
+            continue
+        ups, name, filters = part
+        target: str | None
+        if ups > len(scope):
+            # A custom type is validated before it is placed, so what lies outside it is unknown.
+            if ctx.declaring is None:
+                shown = "{" + "^" * ups + name + "}"
+                message = f"placeholder {shown}: there is no enclosing level to reach"
+                problems.append(Problem(_at(path, "template"), message))
+                return None
+            target = None
+        else:
+            target = ".".join([*scope[: len(scope) - ups], name])
+            if ctx.declaring is not None and not target.startswith(f"{ctx.declaring}."):
+                target = None  # leaves the type; checked where the type is used
+        parts.append(Placeholder(up=ups, path=name, filters=filters, target=target))
+    field = TemplateField(template=template, parts=tuple(parts), **common)
+    ctx.templates.append((ctx.entity, path, data_path, field, _via(ctx)))
+    return field
+
+
+def _object(raw, path, problems, common, ctx: _Context, depth: int, data_path: str):
     # The depth check also ends a document that contains itself through a YAML anchor, so no
     # input can recurse without bound.
     if depth + 1 > MAX_DEPTH:
@@ -728,14 +922,26 @@ def _object(raw, path, problems, common, ctx: _Context, depth: int):
     if "fields" not in raw:
         problems.append(Problem(path, "an object needs 'fields' with at least one field"))
         return None
-    fields = _parse_fields(raw["fields"], _at(path, "fields"), problems, ctx, depth + 1)
+    fields = _parse_fields(
+        raw["fields"],
+        _at(path, "fields"),
+        problems,
+        ctx,
+        depth + 1,
+        f"{data_path}.",
+        need_visible=not common["hidden"],
+    )
     if fields is None or any(field is None for field in fields.values()):
         return None
     return ObjectField(fields=fields, **common)
 
 
-_COMMON_KEYS = frozenset({"type", "null_probability"})
+_COMMON_KEYS = frozenset({"type", "null_probability", "hidden", "unique"})
 _NUMERIC_KEYS = frozenset({"min", "max", "distribution", "mean", "stddev", "ranges"})
+_UNIQUE_TYPES = frozenset(
+    {"integer", "float", "date", "datetime", "choice", "pattern", "sequence", "uuid"}
+)
+_CONTEXTUAL = (_object, _template)  # parsers that need to know where the field is
 
 # type name -> (keys the type accepts besides the common ones, parser)
 _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
@@ -750,15 +956,50 @@ _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
     "constant": (frozenset({"value"}), _constant),
     "reference": (frozenset({"entity", "field", "link"}), _reference),
     "object": (frozenset({"fields"}), _object),
+    "pattern": (frozenset({"pattern"}), _pattern),
+    "template": (frozenset({"template"}), _template),
 }
 
 
+def _expand(type_name, raw, path, problems, ctx: _Context, depth: int, data_path: str):
+    """Parse a field that uses a custom type, as if the definition were written in its place.
+
+    Keys at the point of use replace the definition's. For an object type, `fields` is merged
+    by name, so one sub-field can be swapped without restating the rest.
+    """
+    if type_name in ctx.broken:
+        return None  # already reported where the type is declared
+    merged = dict(ctx.types[type_name])
+    for key, value in raw.items():
+        if key == "type":
+            continue
+        if key == "fields" and isinstance(value, Mapping) and isinstance(merged.get(key), Mapping):
+            merged[key] = {**merged[key], **value}
+        else:
+            merged[key] = value
+    start = len(problems)
+    inner = replace(ctx, expanding=(*ctx.expanding, type_name))
+    field = _parse_field(merged, path, problems, inner, depth, data_path)
+    for index in range(start, len(problems)):
+        problem = problems[index]
+        if "(in custom type" not in problem.message:
+            message = f"{problem.message} (in custom type {type_name!r})"
+            problems[index] = Problem(problem.path, message)
+    return field
+
+
 def _parse_field(
-    raw: Any, path: str, problems: list[Problem], ctx: _Context, depth: int
+    raw: Any, path: str, problems: list[Problem], ctx: _Context, depth: int, data_path: str
 ) -> Field | None:
-    """Parse one field definition. `depth` is the number of objects it is nested inside."""
+    """Parse one field definition.
+
+    `depth` is the number of objects the field is nested inside, and `data_path` its path from
+    the entity down, such as ``address.city``.
+    """
     start = len(problems)
     supported = f"supported types: {', '.join(_FIELD_TYPES)}"
+    if ctx.types:
+        supported += f"; custom types in this spec: {', '.join(ctx.types)}"
     if isinstance(raw, str):
         parts = _reference_parts(raw)
         if parts is None:
@@ -766,7 +1007,7 @@ def _parse_field(
             problems.append(Problem(path, message))
             return None
         field = ReferenceField(entity=parts[0], field=parts[1])
-        ctx.references.append((ctx.entity, path, field))
+        ctx.references.append((ctx.entity, path, field, _via(ctx)))
         return field
     if not isinstance(raw, Mapping):
         message = (
@@ -778,6 +1019,14 @@ def _parse_field(
         problems.append(Problem(path, f"missing required key 'type'; {supported}"))
         return None
     type_name = raw["type"]
+    if isinstance(type_name, str) and type_name in ctx.types:
+        # A custom type takes precedence over a built-in of the same name, except inside its
+        # own definition, where the name means the built-in. That keeps later built-in types
+        # from ever breaking a spec that already uses the name.
+        if type_name not in ctx.expanding:
+            return _expand(type_name, raw, path, problems, ctx, depth, data_path)
+        if type_name not in _FIELD_TYPES:
+            return None  # a cycle, reported once where the types are declared
     if not isinstance(type_name, str) or type_name not in _FIELD_TYPES:
         problems.append(
             Problem(_at(path, "type"), f"unknown field type {type_name!r}; {supported}")
@@ -795,18 +1044,34 @@ def _parse_field(
         problems,
         default=0.0,
     )
-    common = {"null_probability": 0.0 if null_probability is _BAD else null_probability}
-    if parser is _object:
-        field = _object(raw, path, problems, common, ctx, depth)
+    is_bool = lambda v: isinstance(v, bool)  # noqa: E731
+    hidden = _read(raw, "hidden", is_bool, "true or false", path, problems, default=False)
+    unique = _read(raw, "unique", is_bool, "true or false", path, problems, default=False)
+    if unique is True and type_name not in _UNIQUE_TYPES:
+        message = f"'unique' is not supported for type {type_name!r}"
+        problems.append(Problem(_at(path, "unique"), message))
+    common = {
+        "null_probability": 0.0 if null_probability is _BAD else null_probability,
+        "hidden": hidden is True,
+        "unique": unique is True,
+    }
+    if parser in _CONTEXTUAL:
+        field = parser(raw, path, problems, common, ctx, depth, data_path)
     else:
         field = parser(raw, path, problems, common)
     if isinstance(field, ReferenceField):
-        ctx.references.append((ctx.entity, path, field))
+        ctx.references.append((ctx.entity, path, field, _via(ctx)))
     return field if len(problems) == start else None
 
 
 def _parse_fields(
-    raw: Any, path: str, problems: list[Problem], ctx: _Context, depth: int
+    raw: Any,
+    path: str,
+    problems: list[Problem],
+    ctx: _Context,
+    depth: int,
+    prefix: str = "",
+    need_visible: bool = True,
 ) -> dict[Any, Field | None] | None:
     """Parse the `fields` mapping of an entity or object.
 
@@ -824,11 +1089,115 @@ def _parse_fields(
         field_path = _at(path, name)
         if not _is_name(name):
             problems.append(Problem(field_path, f"invalid field name {name!r}; {_NAME_RULE}"))
-        fields[name] = _parse_field(raw_field, field_path, problems, ctx, depth)
+        fields[name] = _parse_field(raw_field, field_path, problems, ctx, depth, f"{prefix}{name}")
+    if need_visible and all(field is not None and field.hidden for field in fields.values()):
+        problems.append(Problem(path, "at least one field must be visible; every field is hidden"))
     return fields
 
 
+# --- custom types -----------------------------------------------------------------------------
+
+
+def _type_uses(definition: Any, names: Mapping[str, Any], own: str, depth: int = 0) -> set[str]:
+    """Return the custom types a raw definition uses, directly or inside its objects."""
+    found: set[str] = set()
+    if not isinstance(definition, Mapping) or depth > MAX_DEPTH:
+        return found
+    used = definition.get("type")
+    if isinstance(used, str) and used in names and not (used == own and used in _FIELD_TYPES):
+        found.add(used)
+    inner = definition.get("fields")
+    if isinstance(inner, Mapping):
+        for item in inner.values():
+            found |= _type_uses(item, names, own, depth + 1)
+    return found
+
+
+def _parse_types(raw: Any, problems: list[Problem]) -> tuple[dict[str, Any], set[str]]:
+    """Validate the `types` block. Return the usable definitions and the names that are broken."""
+    if not isinstance(raw, Mapping):
+        problems.append(Problem("types", "must be a mapping of type name to definition"))
+        return {}, set()
+    types: dict[str, Any] = {}
+    for name, definition in raw.items():
+        path = _at("types", name)
+        if not _is_name(name):
+            problems.append(Problem(path, f"invalid type name {name!r}; {_NAME_RULE}"))
+        elif not isinstance(definition, Mapping):
+            problems.append(Problem(path, "a type definition must be a mapping with a 'type'"))
+        else:
+            types[name] = definition
+
+    uses = {name: _type_uses(definition, types, name) for name, definition in types.items()}
+    broken: set[str] = set()
+    cycle = _find_cycle({name: sorted(used) for name, used in uses.items()})
+    while cycle:
+        problems.append(
+            Problem("types", f"custom types depend on each other: {' -> '.join(cycle)}")
+        )
+        broken.update(cycle)
+        remaining = {
+            name: sorted(used - broken) for name, used in uses.items() if name not in broken
+        }
+        cycle = _find_cycle(remaining)
+
+    # Validate each type on its own, dependencies first, so that a type built on a broken one
+    # is not reported a second time.
+    done: list[str] = []
+
+    def visit(name: str) -> None:
+        if name in done or name in broken:
+            return
+        for used in sorted(uses[name]):
+            visit(used)
+        done.append(name)
+
+    for name in types:
+        visit(name)
+    for name in done:
+        if uses[name] & broken:
+            broken.add(name)
+            continue
+        ctx = _Context(entity=None, types=types, broken=broken, declaring=name)
+        start = len(problems)
+        field = _parse_field(types[name], _at("types", name), problems, ctx, 0, name)
+        if field is not None:
+            _check_templates(ctx.templates, {None: {name: field}}, problems)
+        if len(problems) > start:
+            broken.add(name)
+    return types, broken
+
+
 # --- document parsers -------------------------------------------------------------------------
+
+
+def _draft_fields(
+    fields: Mapping[Any, Field | None], path: str, prefix: str = ""
+) -> Iterator[tuple[str, str, Field]]:
+    """Yield (problem path, path in the entity, field) for every field that parsed."""
+    for name, field in fields.items():
+        if field is None:
+            continue
+        yield _at(path, name), f"{prefix}{name}", field
+        if isinstance(field, ObjectField):
+            yield from _draft_fields(
+                field.fields, _at(_at(path, name), "fields"), f"{prefix}{name}."
+            )
+
+
+def _check_unique(fields: Mapping[Any, Field | None], path: str, count: int, problems) -> None:
+    from dataspecter.domains import domain  # imported here: domains builds on this module
+
+    for problem_path, _, field in _draft_fields(fields, path):
+        if not field.unique:
+            continue
+        values = domain(field)
+        if values is not None and values[0] < count:
+            message = (
+                f"the field is unique but can produce only {values[0]:,} distinct values, and "
+                f"the entity needs {count:,}"
+            )
+            problems.append(Problem(problem_path, message))
 
 
 def _parse_entity(
@@ -848,7 +1217,10 @@ def _parse_entity(
     )
     fields = None
     if "fields" in raw:
-        fields = _parse_fields(raw["fields"], _at(path, "fields"), problems, ctx, depth=0)
+        fields_path = _at(path, "fields")
+        fields = _parse_fields(raw["fields"], fields_path, problems, ctx, depth=0)
+        if fields is not None and _usable(count):
+            _check_unique(fields, fields_path, count, problems)
 
     if len(problems) > start:
         return None, fields
@@ -889,7 +1261,8 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
     if not isinstance(raw, Mapping):
         problems.append(Problem("", "the spec must be a mapping with 'version' and 'entities'"))
         return None
-    _unknown_keys(raw, frozenset({"version", "seed", "entities", "output"}), "", problems)
+    allowed = frozenset({"version", "seed", "entities", "output", "types"})
+    _unknown_keys(raw, allowed, "", problems)
 
     if "version" not in raw:
         problems.append(Problem("version", f"is required; use version: {SUPPORTED_VERSION}"))
@@ -901,6 +1274,7 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
         raw, "seed", lambda v: _is_int(v) and v >= 0, "a non-negative integer", "", problems
     )
     output = _parse_output(raw["output"], problems) if "output" in raw else Output()
+    types, broken = _parse_types(raw["types"], problems) if "types" in raw else ({}, set())
 
     entities: dict[str, Entity] = {}
     raw_entities = raw.get("entities")
@@ -912,15 +1286,16 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
         problems.append(Problem("entities", "at least one entity is required"))
     else:
         drafts: dict[Any, dict[Any, Field | None] | None] = {}
-        references: list[tuple[Any, str, ReferenceField]] = []
+        shared = _Context(entity=None, types=types, broken=broken)
         for name, raw_entity in raw_entities.items():
-            ctx = _Context(entity=name, references=references)
+            ctx = replace(shared, entity=name)
             entity, drafts[name] = _parse_entity(
                 name, raw_entity, _at("entities", name), problems, ctx
             )
             if entity is not None:
                 entities[name] = entity
-        _check_references(references, drafts, problems)
+        _check_references(shared.references, drafts, problems)
+        _check_templates(shared.templates, drafts, problems)
 
     if problems:
         return None
@@ -929,11 +1304,11 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
     return None if problems else spec
 
 
-# --- rules that span entities -----------------------------------------------------------------
+# --- rules that span fields and entities ------------------------------------------------------
 
 
 def _check_references(
-    references: list[tuple[Any, str, ReferenceField]],
+    references: list[tuple[Any, str, ReferenceField, str]],
     drafts: Mapping[Any, dict[Any, Field | None] | None],
     problems: list[Problem],
 ) -> None:
@@ -943,18 +1318,18 @@ def _check_references(
     a bad reference elsewhere.
     """
     edges: dict[Any, list[Any]] = {}
-    for entity, path, field in references:
+    for entity, path, field, note in references:
         if field.entity == entity:
-            problems.append(Problem(path, "an entity cannot reference itself"))
+            problems.append(Problem(path, f"an entity cannot reference itself{note}"))
         elif field.entity not in drafts:
             known = ", ".join(str(name) for name in drafts)
-            message = f"unknown entity {field.entity!r}; entities in this spec: {known}"
+            message = f"unknown entity {field.entity!r}; entities in this spec: {known}{note}"
             problems.append(Problem(path, message))
         else:
             edges.setdefault(entity, []).append(field.entity)
             _, error = _lookup(drafts, field.entity, field.field, visiting=set())
             if error:
-                problems.append(Problem(path, error))
+                problems.append(Problem(path, f"{error}{note}"))
 
     cycle = _find_cycle(edges)
     if cycle:
@@ -988,17 +1363,68 @@ def _lookup(
             return None, f"'{walked}' has no field {segment!r}"
         field = fields[segment]
         walked = f"{walked}.{segment}"
-        target = field
-        while isinstance(target, ReferenceField):
-            target, _ = _lookup(drafts, target.entity, target.field, visiting)
+        target = _resolve(drafts, field, visiting)
         if target is None:
             return None, None
         fields = target.fields if isinstance(target, ObjectField) else {}
     return field, None
 
 
+def _resolve(drafts, field: Field | None, visiting: set[tuple[Any, str]]) -> Field | None:
+    """Follow references to the field they copy; None if that cannot be determined."""
+    while isinstance(field, ReferenceField):
+        field, _ = _lookup(drafts, field.entity, field.field, visiting)
+    return field
+
+
+def _check_templates(
+    templates: list[tuple[Any, str, str, TemplateField, str]],
+    drafts: Mapping[Any, dict[Any, Field | None] | None],
+    problems: list[Problem],
+) -> None:
+    """Check that every placeholder names a single-valued field, and that none is circular."""
+    edges: dict[tuple[Any, str], list[tuple[Any, str]]] = {}
+    template_paths = {(entity, data_path) for entity, _, data_path, _, _ in templates}
+    for entity, problem_path, data_path, field, note in templates:
+        where = _at(problem_path, "template")
+        for part in field.parts:
+            if isinstance(part, str) or part.target is None:
+                continue
+            shown = "{" + "^" * part.up + part.path + "}"
+            found, error = _lookup(drafts, entity, part.target, visiting=set())
+            if error:
+                hint = _outward_hint(drafts, entity, data_path, part)
+                message = f"placeholder {shown}: there is no field {part.path!r} at that level"
+                problems.append(Problem(where, message + hint + note))
+            elif isinstance(_resolve(drafts, found, set()), ObjectField):
+                message = (
+                    f"placeholder {shown} names an object; a placeholder must name a field "
+                    f"inside the object, such as {{{part.path}.city}}"
+                )
+                problems.append(Problem(where, message + note))
+            elif (entity, part.target) in template_paths:
+                edges.setdefault((entity, data_path), []).append((entity, part.target))
+
+    cycle = _find_cycle(edges)
+    if cycle:
+        names = " -> ".join(path for _, path in cycle)
+        owner = _at("entities", cycle[0][0]) if cycle[0][0] is not None else "types"
+        problems.append(Problem(owner, f"templates depend on each other: {names}"))
+
+
+def _outward_hint(drafts, entity: Any, data_path: str, part: Placeholder) -> str:
+    """Suggest the `^` form when the field exists one or more levels further out."""
+    scope = data_path.split(".")[:-1]
+    for extra in range(1, len(scope) - part.up + 1):
+        base = scope[: len(scope) - part.up - extra]
+        found, error = _lookup(drafts, entity, ".".join([*base, part.path]), visiting=set())
+        if found is not None and error is None:
+            return f"; did you mean {{{'^' * (part.up + extra)}{part.path}}}?"
+    return ""
+
+
 def _find_cycle(edges: Mapping[Any, list[Any]]) -> list[Any] | None:
-    """Return the entities along one cycle (first repeated at the end), or None."""
+    """Return the nodes along one cycle (first repeated at the end), or None."""
     done: set[Any] = set()
 
     def visit(node: Any, trail: list[Any]) -> list[Any] | None:
@@ -1070,15 +1496,31 @@ def field_at(spec: Spec, entity: str, path: str) -> Field:
     return field
 
 
+def hidden_paths(spec: Spec, field: Field, prefix: str = "") -> tuple[str, ...]:
+    """Return the paths, relative to `field`, of the hidden fields inside the object it holds."""
+    target = follow(spec, field)
+    if not isinstance(target, ObjectField):
+        return ()
+    found: list[str] = []
+    for name, inner in target.fields.items():
+        if inner.hidden:
+            found.append(f"{prefix}{name}")
+        else:
+            found.extend(hidden_paths(spec, inner, f"{prefix}{name}."))
+    return tuple(found)
+
+
 def leaf_paths(spec: Spec, entity: str) -> tuple[str, ...]:
-    """Return the paths of an entity's fields that hold a single value, in declared order.
+    """Return the paths of an entity's visible fields that hold a single value, in declared order.
 
     These are the columns CSV export writes. An object contributes one path per field inside
-    it, and so does a reference that copies an object.
+    it, and so does a reference that copies an object. Hidden fields are left out.
     """
 
     def walk(fields: Mapping[str, Field], prefix: str) -> Iterator[str]:
         for name, field in fields.items():
+            if field.hidden:
+                continue
             target = follow(spec, field)
             if isinstance(target, ObjectField):
                 yield from walk(target.fields, f"{prefix}{name}.")

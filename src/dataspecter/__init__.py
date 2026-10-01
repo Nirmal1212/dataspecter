@@ -10,7 +10,15 @@ dataspecter.write(spec, out_dir="out", format="jsonl")
 
 from dataspecter._version import __version__
 from dataspecter.api import generate, write
-from dataspecter.errors import ExportError, SpecError
+from dataspecter.errors import ExportError, GenerationError, SpecError
 from dataspecter.spec import load_spec
 
-__all__ = ["ExportError", "SpecError", "__version__", "generate", "load_spec", "write"]
+__all__ = [
+    "ExportError",
+    "GenerationError",
+    "SpecError",
+    "__version__",
+    "generate",
+    "load_spec",
+    "write",
+]

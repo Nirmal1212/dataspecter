@@ -32,3 +32,15 @@ def copy_value(value: Any) -> Any:
     if isinstance(value, dict):
         return {name: copy_value(item) for name, item in value.items()}
     return value
+
+
+def remove(record: dict[str, Any], path: str) -> None:
+    """Delete the value at `path` from a record, if the objects leading to it are present."""
+    *parents, name = path.split(".")
+    value: Any = record
+    for part in parents:
+        value = value.get(part) if isinstance(value, dict) else None
+        if value is None:
+            return
+    if isinstance(value, dict):
+        value.pop(name, None)
