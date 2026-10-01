@@ -2,10 +2,10 @@
 
 ## 1. Project scaffolding
 
-- [ ] 1.1 Add `pyproject.toml` (hatchling, Python >=3.11, version 0.1.0, pyyaml as the only runtime dependency, dev extra with pytest and ruff, `dataspecter` console script, ruff and pytest config) and verify `uv sync --extra dev` succeeds
-- [ ] 1.2 Create `src/dataspecter/__init__.py` with `__version__` and an empty `tests/` package, and verify `uv run python -c "import dataspecter; print(dataspecter.__version__)"` prints `0.1.0`
-- [ ] 1.3 Add a smoke test that imports the package and verify `uv run pytest` and `uv run ruff check .` both pass
-- [ ] 1.4 Record the tech stack and the build, test and lint commands in `CLAUDE.md` and in the `context` block of `openspec/config.yaml`, and verify `openspec validate --all --strict` still passes
+- [x] 1.1 Add `pyproject.toml` (hatchling, Python >=3.11, version 0.1.0, pyyaml as the only runtime dependency, dev extra with pytest and ruff, `dataspecter` console script, ruff and pytest config) and verify `uv sync --extra dev` succeeds
+- [x] 1.2 Create `src/dataspecter/__init__.py` with `__version__` and an empty `tests/` package, and verify `uv run python -c "import dataspecter; print(dataspecter.__version__)"` prints `0.1.0`
+- [x] 1.3 Add a smoke test that imports the package and verify `uv run pytest` and `uv run ruff check .` both pass
+- [x] 1.4 Record the tech stack and the build, test and lint commands in `CLAUDE.md` and in the `context` block of `openspec/config.yaml`, and verify `openspec validate --all --strict` still passes
 
 ## 2. Spec model and validation
 

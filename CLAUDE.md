@@ -17,4 +17,16 @@ The full development process is in [CONTRIBUTING.md](CONTRIBUTING.md). Read it b
 
 ## Project notes
 
-<!-- Tech stack, commands to build/test/lint, and architecture notes go here as they are decided. -->
+**Stack:** Python 3.11+, packaged with hatchling in a `src/` layout. PyYAML is the only runtime dependency; everything else at runtime is standard library, and new runtime dependencies need a justification in the change's design. pytest and ruff are dev-only.
+
+**Commands** (run from the repo root):
+
+```bash
+uv sync --extra dev        # create or update the environment
+uv run pytest              # tests
+uv run ruff check .        # lint
+uv run ruff format .       # format
+uv run dataspecter --help  # the CLI
+```
+
+**Layout:** package in `src/dataspecter/`, tests in `tests/`, example specs in `examples/`. The version lives in `src/dataspecter/_version.py`.

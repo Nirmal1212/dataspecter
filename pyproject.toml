@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dataspecter"
+dynamic = ["version"]
+description = "Config-driven synthetic data simulator: describe entities and value distributions in YAML or JSON, get reproducible CSV or JSON data."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+dataspecter = "dataspecter.cli:main"
+
+[tool.hatch.version]
+path = "src/dataspecter/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dataspecter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

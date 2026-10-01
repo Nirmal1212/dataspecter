@@ -30,3 +30,6 @@ npm-debug.log*
 # Build output
 build/
 dist/
+
+# Generated data (the default output directory)
+/output/
