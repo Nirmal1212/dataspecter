@@ -126,10 +126,10 @@ def test_spec_must_be_a_mapping(source):
 
 
 def test_unknown_field_type_lists_supported_types():
-    [problem] = problems_of(spec_of({"type": "email"}))
+    [problem] = problems_of(spec_of({"type": "surname"}))
 
     assert problem.path == "entities.thing.fields.value.type"
-    assert "unknown field type 'email'" in problem.message
+    assert "unknown field type 'surname'" in problem.message
     for name in ("integer", "float", "boolean", "choice", "date", "datetime", "sequence"):
         assert name in problem.message
     for name in ("uuid", "constant", "reference"):

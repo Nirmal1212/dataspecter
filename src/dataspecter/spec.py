@@ -16,6 +16,7 @@ from typing import Any, ClassVar
 
 import yaml
 
+from dataspecter.data import ADDRESS_FIELDS, DEFAULT_LOCALE, LOCALES
 from dataspecter.errors import Problem, SpecError
 
 SUPPORTED_VERSION = 1
@@ -44,6 +45,11 @@ _PATH = re.compile(_PATH_PATTERN)
 _REFERENCE = re.compile(rf"\$({_NAME_PATTERN})\.({_PATH_PATTERN})")
 _BAD = object()  # a key that was present but invalid, and has already been reported
 FILTERS = ("lower", "upper", "title", "ascii", "slug")
+NAME_FORMATS = ("first_last", "last_first")
+_LOCALE = re.compile(r"[a-z]{2,3}_[A-Z]{2}")
+_LOCALE_FORM = "a locale code such as en_IN (language, underscore, country)"
+_HOST_LABEL = r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+_HOST = re.compile(rf"(?=.{{1,253}}$){_HOST_LABEL}(?:\.{_HOST_LABEL})+")
 _PATTERN_KINDS = {"#": "digit", "%": "nonzero", "?": "letter"}
 _PLACEHOLDER = re.compile(rf"\s*(\^*)\s*({_PATH_PATTERN})\s*((?:\|\s*[A-Za-z_]+\s*)*)")
 
@@ -170,6 +176,44 @@ class TemplateField(_Field):
     parts: tuple[str | Placeholder, ...]
 
 
+@dataclass(frozen=True, kw_only=True)
+class NameField(_Field):
+    kind: str  # "first_name", "last_name" or "full_name"
+    locale: str
+    format: str = "first_last"
+
+
+@dataclass(frozen=True, kw_only=True)
+class EmailField(_Field):
+    type: ClassVar[str] = "email"
+    locale: str
+    domain: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class PhoneField(_Field):
+    type: ClassVar[str] = "phone"
+    locale: str
+    segments: tuple[tuple[str, str], ...]  # a compiled pattern, as in PatternField
+
+
+@dataclass(frozen=True, kw_only=True)
+class AddressField(_Field):
+    """Produces an object. `fields` are the names it holds, in order."""
+
+    type: ClassVar[str] = "address"
+    locale: str
+    fields: tuple[str, ...] = ADDRESS_FIELDS
+
+
+@dataclass(frozen=True, kw_only=True)
+class FakerField(_Field):
+    type: ClassVar[str] = "faker"
+    provider: str
+    locale: str
+    args: Mapping[str, Any]
+
+
 Field = (
     IntegerField
     | FloatField
@@ -184,6 +228,11 @@ Field = (
     | ObjectField
     | PatternField
     | TemplateField
+    | NameField
+    | EmailField
+    | PhoneField
+    | AddressField
+    | FakerField
 )
 
 
@@ -209,6 +258,7 @@ class Spec:
     entities: Mapping[str, Entity]
     seed: int | None = None
     output: Output = Output()
+    locale: str | None = None  # the locale in force: the caller's, else the spec's own
 
 
 # --- loading ----------------------------------------------------------------------------------
@@ -229,15 +279,21 @@ _Loader.yaml_implicit_resolvers = {
 }
 
 
-def load_spec(source: str | os.PathLike[str] | Mapping[str, Any]) -> Spec:
+def load_spec(
+    source: str | os.PathLike[str] | Mapping[str, Any], locale: str | None = None
+) -> Spec:
     """Load and validate a spec from a YAML or JSON file, or from a mapping of the same shape.
+
+    `locale` replaces the spec's own `locale` for every field that does not declare one.
 
     Raises `SpecError`, listing every problem found, if the file cannot be read or the spec
     is not valid.
     """
     raw = _read_file(Path(source)) if isinstance(source, str | os.PathLike) else source
     problems: list[Problem] = []
-    spec = _parse_spec(raw, problems)
+    if locale is not None and not _is_locale(locale):
+        raise ValueError(f"locale must be {_LOCALE_FORM}, got {locale!r}")
+    spec = _parse_spec(raw, problems, locale)
     if problems or spec is None:
         raise SpecError(problems)
     return spec
@@ -293,6 +349,10 @@ def _is_number(value: Any) -> bool:
 
 def _is_probability(value: Any) -> bool:
     return _is_number(value) and 0 <= value <= 1
+
+
+def _is_locale(value: Any) -> bool:
+    return isinstance(value, str) and _LOCALE.fullmatch(value) is not None
 
 
 def _is_scalar(value: Any) -> bool:
@@ -813,6 +873,7 @@ class _Context:
     broken: set[str] = dataclass_field(default_factory=set)  # types reported at their declaration
     expanding: tuple[str, ...] = ()  # custom types being expanded, outermost first
     declaring: str | None = None  # the custom type being validated on its own, if any
+    locale: str | None = None  # the caller's or the spec's locale, for fields that set none
 
 
 def _via(ctx: _Context) -> str:
@@ -936,12 +997,186 @@ def _object(raw, path, problems, common, ctx: _Context, depth: int, data_path: s
     return ObjectField(fields=fields, **common)
 
 
+# --- realistic data -------------------------------------------------------------------------
+
+
+def _locale_of(raw, path, problems, ctx: _Context, bundled: bool) -> str | None:
+    """Return the field's locale: its own, else the one in force, else the default."""
+    locale = _read(
+        raw,
+        "locale",
+        _is_locale,
+        _LOCALE_FORM,
+        path,
+        problems,
+        default=ctx.locale or DEFAULT_LOCALE,
+    )
+    if locale is _BAD:
+        return None
+    if bundled and locale not in LOCALES:
+        message = (
+            f"locale {locale!r} is not bundled; the built-in types support "
+            f"{', '.join(LOCALES)}. Use the 'faker' type for other locales"
+        )
+        problems.append(Problem(path, message))
+        return None
+    return locale
+
+
+def _name(kind):
+    def parse(raw, path, problems, common, ctx: _Context, depth: int, data_path: str):
+        locale = _locale_of(raw, path, problems, ctx, bundled=True)
+        formats = " or ".join(repr(item) for item in NAME_FORMATS)
+        name_format = _read(
+            raw,
+            "format",
+            lambda v: v in NAME_FORMATS,
+            formats,
+            path,
+            problems,
+            default="first_last",
+        )
+        if locale is None or name_format is _BAD:
+            return None
+        return NameField(kind=kind, locale=locale, format=name_format, **common)
+
+    return parse
+
+
+_first_name, _last_name, _full_name = _name("first_name"), _name("last_name"), _name("full_name")
+
+
+def _email(raw, path, problems, common, ctx: _Context, depth: int, data_path: str):
+    locale = _locale_of(raw, path, problems, ctx, bundled=True)
+    domain = _read(
+        raw,
+        "domain",
+        lambda v: isinstance(v, str) and _HOST.fullmatch(v) is not None,
+        "a host name in lower case, such as acme.test",
+        path,
+        problems,
+    )
+    if locale is None or domain is _BAD:
+        return None
+    return EmailField(locale=locale, domain=domain, **common)
+
+
+def _phone(raw, path, problems, common, ctx: _Context, depth: int, data_path: str):
+    locale = _locale_of(raw, path, problems, ctx, bundled=True)
+    pattern = _read(
+        raw,
+        "pattern",
+        lambda v: isinstance(v, str) and v != "",
+        "a non-empty pattern",
+        path,
+        problems,
+    )
+    if locale is None or pattern is _BAD:
+        return None
+    segments = LOCALES[locale].PHONE
+    if pattern is not None:
+        segments, error = compile_pattern(pattern)
+        if error:
+            problems.append(Problem(_at(path, "pattern"), error))
+            return None
+    return PhoneField(locale=locale, segments=segments, **common)
+
+
+def _address(raw, path, problems, common, ctx: _Context, depth: int, data_path: str):
+    locale = _locale_of(raw, path, problems, ctx, bundled=True)
+    names = raw.get("fields", list(ADDRESS_FIELDS))
+    known = ", ".join(ADDRESS_FIELDS)
+    if not isinstance(names, list) or not names:
+        message = f"must be a non-empty list of address field names: {known}"
+        problems.append(Problem(_at(path, "fields"), message))
+        return None
+    unknown = [name for name in names if name not in ADDRESS_FIELDS]
+    if unknown:
+        message = f"unknown address field {unknown[0]!r}; an address has the fields: {known}"
+        problems.append(Problem(_at(path, "fields"), message))
+        return None
+    if len(set(names)) != len(names):
+        problems.append(Problem(_at(path, "fields"), "an address field is listed twice"))
+        return None
+    if locale is None:
+        return None
+    return AddressField(locale=locale, fields=tuple(names), **common)
+
+
+def _is_plain(value: Any) -> bool:
+    return value is None or _is_scalar(value)
+
+
+def _faker(raw, path, problems, common, ctx: _Context, depth: int, data_path: str):
+    from dataspecter import fakerbridge  # imported here so that Faker stays optional
+
+    start = len(problems)
+    _require(raw, ("provider",), path, problems)
+    provider = _read(
+        raw,
+        "provider",
+        lambda v: isinstance(v, str) and v != "",
+        "the name of a Faker provider, such as company",
+        path,
+        problems,
+    )
+    locale = _locale_of(raw, path, problems, ctx, bundled=False)
+    args = _read(
+        raw,
+        "args",
+        lambda v: isinstance(v, Mapping) and all(isinstance(k, str) for k in v),
+        "a mapping of argument name to value",
+        path,
+        problems,
+        default={},
+    )
+    if _usable(args):
+        for name, value in args.items():
+            items = value if isinstance(value, list) else [value]
+            if not all(map(_is_plain, items)):
+                message = "an argument may be text, a number, a boolean, null, or a list of those"
+                problems.append(Problem(_at(_at(path, "args"), name), message))
+    if len(problems) > start or not _usable(provider, locale):
+        return None
+    error = fakerbridge.check(provider, locale, args)
+    if error:
+        problems.append(Problem(path, error))
+        return None
+    return FakerField(provider=provider, locale=locale, args=dict(args), **common)
+
+
 _COMMON_KEYS = frozenset({"type", "null_probability", "hidden", "unique"})
 _NUMERIC_KEYS = frozenset({"min", "max", "distribution", "mean", "stddev", "ranges"})
 _UNIQUE_TYPES = frozenset(
-    {"integer", "float", "date", "datetime", "choice", "pattern", "sequence", "uuid"}
+    {
+        "integer",
+        "float",
+        "date",
+        "datetime",
+        "choice",
+        "pattern",
+        "sequence",
+        "uuid",
+        "first_name",
+        "last_name",
+        "full_name",
+        "email",
+        "phone",
+        "faker",
+    }
 )
-_CONTEXTUAL = (_object, _template)  # parsers that need to know where the field is
+# Parsers that need to know where the field is, or which locale is in force.
+_CONTEXTUAL = (
+    _object,
+    _template,
+    _first_name,
+    _last_name,
+    _full_name,
+    _email,
+    _phone,
+    _address,
+    _faker,
+)
 
 # type name -> (keys the type accepts besides the common ones, parser)
 _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
@@ -958,6 +1193,13 @@ _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
     "object": (frozenset({"fields"}), _object),
     "pattern": (frozenset({"pattern"}), _pattern),
     "template": (frozenset({"template"}), _template),
+    "first_name": (frozenset({"locale"}), _first_name),
+    "last_name": (frozenset({"locale"}), _last_name),
+    "full_name": (frozenset({"locale", "format"}), _full_name),
+    "email": (frozenset({"locale", "domain"}), _email),
+    "phone": (frozenset({"locale", "pattern"}), _phone),
+    "address": (frozenset({"locale", "fields"}), _address),
+    "faker": (frozenset({"provider", "locale", "args"}), _faker),
 }
 
 
@@ -1113,7 +1355,9 @@ def _type_uses(definition: Any, names: Mapping[str, Any], own: str, depth: int =
     return found
 
 
-def _parse_types(raw: Any, problems: list[Problem]) -> tuple[dict[str, Any], set[str]]:
+def _parse_types(
+    raw: Any, problems: list[Problem], locale: str | None
+) -> tuple[dict[str, Any], set[str]]:
     """Validate the `types` block. Return the usable definitions and the names that are broken."""
     if not isinstance(raw, Mapping):
         problems.append(Problem("types", "must be a mapping of type name to definition"))
@@ -1158,7 +1402,7 @@ def _parse_types(raw: Any, problems: list[Problem]) -> tuple[dict[str, Any], set
         if uses[name] & broken:
             broken.add(name)
             continue
-        ctx = _Context(entity=None, types=types, broken=broken, declaring=name)
+        ctx = _Context(entity=None, types=types, broken=broken, declaring=name, locale=locale)
         start = len(problems)
         field = _parse_field(types[name], _at("types", name), problems, ctx, 0, name)
         if field is not None:
@@ -1257,11 +1501,11 @@ def _parse_output(raw: Any, problems: list[Problem]) -> Output:
     )
 
 
-def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
+def _parse_spec(raw: Any, problems: list[Problem], locale: str | None = None) -> Spec | None:
     if not isinstance(raw, Mapping):
         problems.append(Problem("", "the spec must be a mapping with 'version' and 'entities'"))
         return None
-    allowed = frozenset({"version", "seed", "entities", "output", "types"})
+    allowed = frozenset({"version", "seed", "entities", "output", "types", "locale"})
     _unknown_keys(raw, allowed, "", problems)
 
     if "version" not in raw:
@@ -1274,7 +1518,9 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
         raw, "seed", lambda v: _is_int(v) and v >= 0, "a non-negative integer", "", problems
     )
     output = _parse_output(raw["output"], problems) if "output" in raw else Output()
-    types, broken = _parse_types(raw["types"], problems) if "types" in raw else ({}, set())
+    own_locale = _read(raw, "locale", _is_locale, _LOCALE_FORM, "", problems)
+    locale = locale or (own_locale if _usable(own_locale) else None)
+    types, broken = _parse_types(raw["types"], problems, locale) if "types" in raw else ({}, set())
 
     entities: dict[str, Entity] = {}
     raw_entities = raw.get("entities")
@@ -1286,7 +1532,7 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
         problems.append(Problem("entities", "at least one entity is required"))
     else:
         drafts: dict[Any, dict[Any, Field | None] | None] = {}
-        shared = _Context(entity=None, types=types, broken=broken)
+        shared = _Context(entity=None, types=types, broken=broken, locale=locale)
         for name, raw_entity in raw_entities.items():
             ctx = replace(shared, entity=name)
             entity, drafts[name] = _parse_entity(
@@ -1299,7 +1545,9 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
 
     if problems:
         return None
-    spec = Spec(version=SUPPORTED_VERSION, entities=entities, seed=seed, output=output)
+    spec = Spec(
+        version=SUPPORTED_VERSION, entities=entities, seed=seed, output=output, locale=locale
+    )
     _check_columns(spec, problems)
     return None if problems else spec
 
@@ -1366,7 +1614,7 @@ def _lookup(
         target = _resolve(drafts, field, visiting)
         if target is None:
             return None, None
-        fields = target.fields if isinstance(target, ObjectField) else {}
+        fields = sub_fields(target) or {}
     return field, None
 
 
@@ -1396,7 +1644,7 @@ def _check_templates(
                 hint = _outward_hint(drafts, entity, data_path, part)
                 message = f"placeholder {shown}: there is no field {part.path!r} at that level"
                 problems.append(Problem(where, message + hint + note))
-            elif isinstance(_resolve(drafts, found, set()), ObjectField):
+            elif sub_fields(_resolve(drafts, found, set())) is not None:
                 message = (
                     f"placeholder {shown} names an object; a placeholder must name a field "
                     f"inside the object, such as {{{part.path}.city}}"
@@ -1469,6 +1717,18 @@ def _check_columns(spec: Spec, problems: list[Problem]) -> None:
 # --- reading the structure of a validated spec ------------------------------------------------
 
 
+_TEXT_LEAF = ConstantField(value="")  # stands for one text field inside a built-in object
+
+
+def sub_fields(field: Field | None) -> Mapping[str, Field] | None:
+    """Return the fields inside a field that produces an object, or None for a single value."""
+    if isinstance(field, ObjectField):
+        return field.fields
+    if isinstance(field, AddressField):
+        return dict.fromkeys(field.fields, _TEXT_LEAF)
+    return None
+
+
 def iter_fields(fields: Mapping[str, Field], prefix: str = "") -> Iterator[tuple[str, Field]]:
     """Yield every field under `fields` with its path, objects before the fields inside them."""
     for name, field in fields.items():
@@ -1492,17 +1752,18 @@ def field_at(spec: Spec, entity: str, path: str) -> Field:
     for segment in path.split("."):
         field = fields[segment]
         target = follow(spec, field)
-        fields = target.fields if isinstance(target, ObjectField) else {}
+        fields = sub_fields(target) or {}
     return field
 
 
 def hidden_paths(spec: Spec, field: Field, prefix: str = "") -> tuple[str, ...]:
     """Return the paths, relative to `field`, of the hidden fields inside the object it holds."""
     target = follow(spec, field)
-    if not isinstance(target, ObjectField):
+    inside = sub_fields(target)
+    if inside is None:
         return ()
     found: list[str] = []
-    for name, inner in target.fields.items():
+    for name, inner in inside.items():
         if inner.hidden:
             found.append(f"{prefix}{name}")
         else:
@@ -1522,8 +1783,9 @@ def leaf_paths(spec: Spec, entity: str) -> tuple[str, ...]:
             if field.hidden:
                 continue
             target = follow(spec, field)
-            if isinstance(target, ObjectField):
-                yield from walk(target.fields, f"{prefix}{name}.")
+            inside = sub_fields(target)
+            if inside is not None:
+                yield from walk(inside, f"{prefix}{name}.")
             else:
                 yield f"{prefix}{name}"
 

@@ -26,6 +26,7 @@ from dataspecter.spec import (
     hidden_paths,
     iter_fields,
     leaf_paths,
+    sub_fields,
 )
 
 # A step run on a record after its other fields exist: (path, function taking the record).
@@ -136,7 +137,7 @@ class Simulation:
         if isinstance(field, ReferenceField):
             column = self._column(field.entity, field.field)
             pick = picks[field.entity, field.link]
-            if isinstance(follow(self.spec, field), ObjectField):
+            if sub_fields(follow(self.spec, field)) is not None:
                 # Each record gets its own copy, so editing one never changes another.
                 def read() -> Any:
                     return copy_value(column[pick.index])
@@ -251,7 +252,7 @@ class Simulation:
         for segment in path.split("."):
             field = fields[segment]
             target = follow(self.spec, field)
-            fields = target.fields if isinstance(target, ObjectField) else {}
+            fields = sub_fields(target) or {}
         inner_hidden = hidden_paths(self.spec, field)
 
         def collect(row: dict[str, Any]) -> Any:

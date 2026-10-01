@@ -13,9 +13,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Enables the `faker` field type. Everything else works without it.
+faker = [
+    "faker>=20",
+]
 dev = [
     "pytest>=8",
     "ruff>=0.5",
+    "faker>=20",
 ]
 
 [project.scripts]

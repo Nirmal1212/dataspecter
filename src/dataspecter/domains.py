@@ -19,7 +19,9 @@ from dataspecter.spec import (
     Field,
     FloatField,
     IntegerField,
+    NameField,
     PatternField,
+    PhoneField,
     precision_bounds,
 )
 
@@ -27,7 +29,13 @@ from dataspecter.spec import (
 Domain = tuple[int, Callable[[int], Any]]
 
 _DIGITS = "0123456789"
-_ALPHABETS = {"digit": _DIGITS, "nonzero": _DIGITS[1:], "letter": "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+_ALPHABETS = {
+    "digit": _DIGITS,
+    "nonzero": _DIGITS[1:],
+    "letter": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "two_to_nine": _DIGITS[2:],
+    "six_to_nine": _DIGITS[6:],
+}
 
 
 def domain(field: Field) -> Domain | None:
@@ -62,8 +70,12 @@ def domain(field: Field) -> Domain | None:
                 )
             )
             return len(values), values.__getitem__
-        case PatternField():
+        case PatternField() | PhoneField():
             return _pattern_domain(field)
+        case NameField():
+            from dataspecter.realistic import name_values  # realistic builds on this module
+
+            return name_values(field)
     return None
 
 
@@ -96,7 +108,7 @@ def _spans(bounds: list[tuple[int, int]] | None, convert: Callable[[int], Any]) 
     return (ends[-1] if ends else 0), value_at
 
 
-def _pattern_domain(field: PatternField) -> Domain:
+def _pattern_domain(field: PatternField | PhoneField) -> Domain:
     alphabets = [_ALPHABETS[kind] for kind, _ in field.segments if kind != "literal"]
     size = 1
     for alphabet in alphabets:

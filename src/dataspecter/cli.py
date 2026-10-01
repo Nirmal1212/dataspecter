@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections.abc import Sequence
 
@@ -24,6 +25,12 @@ def _seed(text: str) -> int:
     if value < 0:
         raise argparse.ArgumentTypeError(f"must be a non-negative integer, got {text!r}")
     return value
+
+
+def _locale(text: str) -> str:
+    if re.fullmatch(r"[a-z]{2,3}_[A-Z]{2}", text) is None:
+        raise argparse.ArgumentTypeError(f"must be a locale code such as en_IN, got {text!r}")
+    return text
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -51,6 +58,12 @@ def _parser() -> argparse.ArgumentParser:
     generate.add_argument(
         "--seed", type=_seed, metavar="INTEGER", help="seed for the run (default: the spec's seed)"
     )
+    generate.add_argument(
+        "--locale",
+        type=_locale,
+        metavar="CODE",
+        help="locale for names, phones and addresses, such as en_IN (default: the spec's locale)",
+    )
 
     validate = commands.add_parser(
         "validate",
@@ -62,7 +75,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _run(args: argparse.Namespace) -> None:
-    spec = load_spec(args.spec)
+    spec = load_spec(args.spec, locale=getattr(args, "locale", None))
     if args.command == "validate":
         rows = sum(entity.count for entity in spec.entities.values())
         print(f"{args.spec} is valid: {len(spec.entities)} entities, {rows} rows")

@@ -16,15 +16,20 @@ from dataspecter.domains import domain
 from dataspecter.errors import GenerationError
 from dataspecter.paths import reader
 from dataspecter.spec import (
+    AddressField,
     BooleanField,
     ChoiceField,
     ConstantField,
     DateField,
     DatetimeField,
+    EmailField,
+    FakerField,
     Field,
     FloatField,
     IntegerField,
+    NameField,
     PatternField,
+    PhoneField,
     Placeholder,
     ReferenceField,
     SequenceField,
@@ -76,9 +81,10 @@ def field_generator(
     `read_reference` returns the target field's value in the currently picked row, and is
     required for a reference.
     """
-    generate = _build(field, stream(seed, entity, name), read_reference)
+    label = f"{entity}.{name}"
+    generate = _build(field, stream(seed, entity, name), read_reference, label)
     if field.unique and not isinstance(field, SequenceField | UuidField):
-        generate = _unique(generate, field, f"{entity}.{name}")
+        generate = _unique(generate, field, label)
     if field.null_probability <= 0:
         return generate
 
@@ -94,7 +100,9 @@ def field_generator(
     return generate_or_null
 
 
-def _build(field: Field, rng: random.Random, read_reference: Generator | None) -> Generator:
+def _build(
+    field: Field, rng: random.Random, read_reference: Generator | None, label: str = ""
+) -> Generator:
     match field:
         case IntegerField() | FloatField():
             return _numeric(field, rng)
@@ -116,8 +124,16 @@ def _build(field: Field, rng: random.Random, read_reference: Generator | None) -
         case ConstantField():
             value = field.value
             return lambda: value
-        case PatternField():
+        case PatternField() | PhoneField():
             return _pattern(field, rng)
+        case NameField() | EmailField() | AddressField():
+            from dataspecter import realistic  # realistic builds on this module
+
+            return realistic.build(field, rng)
+        case FakerField():
+            from dataspecter import fakerbridge  # imported only for specs that use Faker
+
+            return fakerbridge.generator(field, rng.getrandbits(64), label)
         case ReferenceField():
             if read_reference is None:
                 raise ValueError("a reference field needs a reader for its target field")
@@ -178,10 +194,12 @@ _PATTERN_ALPHABETS = {
     "digit": _DIGITS,
     "nonzero": _DIGITS[1:],
     "letter": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "two_to_nine": _DIGITS[2:],
+    "six_to_nine": _DIGITS[6:],
 }
 
 
-def _pattern(field: PatternField, rng: random.Random) -> Generator:
+def _pattern(field: PatternField | PhoneField, rng: random.Random) -> Generator:
     pieces = [(text, _PATTERN_ALPHABETS.get(kind)) for kind, text in field.segments]
     return lambda: "".join(
         text if alphabet is None else rng.choice(alphabet) for text, alphabet in pieces
@@ -236,7 +254,8 @@ def _ascii(text: str) -> str:
     return decomposed.encode("ascii", "ignore").decode("ascii")
 
 
-def _slug(text: str) -> str:
+def slug(text: str) -> str:
+    """Lower-case ASCII with every run of other characters turned into one hyphen."""
     return re.sub(r"[^a-z0-9]+", "-", _ascii(text).lower()).strip("-")
 
 
@@ -249,7 +268,7 @@ _FILTERS: dict[str, Callable[[str], str]] = {
     "upper": str.upper,
     "title": _title,
     "ascii": _ascii,
-    "slug": _slug,
+    "slug": slug,
 }
 
 

@@ -131,7 +131,7 @@ def test_invalid_yaml_date_is_reported_with_its_location(tmp_path):
 
 def test_two_problems_in_a_file_are_reported_together(tmp_path):
     raw = spec_of({"type": "integer", "min": 9, "max": 1})
-    raw["entities"]["thing"]["fields"]["other"] = {"type": "email"}
+    raw["entities"]["thing"]["fields"]["other"] = {"type": "surname"}
     path = tmp_path / "two.json"
     path.write_text(json.dumps(raw), encoding="utf-8")
 

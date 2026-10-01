@@ -646,9 +646,9 @@ def test_check_that_depends_on_the_point_of_use():
 
 
 def test_unknown_type_lists_built_in_and_custom_types():
-    [problem] = problems_of(with_types({"v": {"type": "email"}}))
+    [problem] = problems_of(with_types({"v": {"type": "surname"}}))
 
-    assert "unknown field type 'email'" in problem.message
+    assert "unknown field type 'surname'" in problem.message
     assert "pattern" in problem.message and "template" in problem.message
     assert "custom types in this spec: indian_mobile, money, person" in problem.message
 
