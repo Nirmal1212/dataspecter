@@ -33,6 +33,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `hidden: true` on any field: generated and readable by templates and references, but left out of records and files.
 - `unique: true` for `integer`, `float`, `date`, `datetime`, `choice` and `pattern` fields. A spec that needs more unique values than a field can produce is rejected before generation.
 - Custom types: a top-level `types` block names field definitions once, and fields use them with `type: <name>`, optionally overriding keys. A custom type takes precedence over a built-in of the same name.
+- Built-in realistic types: `first_name`, `last_name`, `full_name`, `email`, `phone` and `address`, backed by bundled data for India (`en_IN`) and the United States (`en_US`). Options: `format` on `full_name`, `domain` on `email`, `pattern` on `phone`, `fields` on `address`; all but `address` support `unique`.
+- Addresses are consistent: the state is the city's, and the postcode begins with a prefix of that city. Postcodes and phone numbers are text.
+- Safe defaults: emails use domains reserved for documentation, and `en_US` phone numbers use the range reserved for fiction. `en_IN` phone numbers have no reserved range and may be real.
+- Locale handling: `locale` at the top of a spec, `--locale` on the command line and a `locale` argument to `load_spec`, and `locale` on a field, in increasing order of precedence.
+- `faker` field type: calls a provider of the optional Faker library (version 20 or later). Only provider methods can be called, with plain arguments, and only single values are accepted back. Specs that do not use it need no Faker.
+- CI runs the suite a second time with Faker removed.
 - `GenerationError`, raised when generation has to stop, for example when a unique field with no fixed set of values cannot find an unused one.
 
 ### Changed

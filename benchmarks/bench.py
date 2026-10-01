@@ -32,6 +32,19 @@ SCENARIOS = {
         "kind": {"type": "choice", "values": ["view", "click", "buy"], "weights": [80, 15, 5]},
         "at": {"type": "datetime", "min": "2025-01-01T00:00:00", "max": "2025-12-31T23:59:59"},
     },
+    # The built-in realistic types.
+    "realistic": {
+        "id": {"type": "sequence"},
+        "name": {"type": "full_name"},
+        "email": {"type": "email"},
+        "phone": {"type": "phone", "locale": "en_IN"},
+        "home": {"type": "address"},
+    },
+    # One Faker provider, for comparison with the built-in types. Needs Faker installed.
+    "faker": {
+        "id": {"type": "sequence"},
+        "company": {"type": "faker", "provider": "company"},
+    },
     # A pattern, a unique pattern, hidden inputs and a template over them.
     "text": {
         "id": {"type": "sequence"},

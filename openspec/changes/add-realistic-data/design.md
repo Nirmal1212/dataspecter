@@ -63,7 +63,9 @@ All built-ins except `address` support `unique`, using the capacity machinery fr
 
 ### 5. Locale resolution
 
-Precedence, highest first: the field's `locale`, then `--locale` or the `locale` argument of the Python API, then the spec's `locale`, then `en_US`.
+Precedence, highest first: the field's `locale`, then `--locale` or the `locale` argument of `load_spec`, then the spec's `locale`, then `en_US`.
+
+The caller's locale is given when the spec is loaded, not when it is generated. Whether a field can use its locale (a bundled one for a built-in type, a Faker one for a `faker` field) is a validation question, and so is the capacity of a unique name field, which depends on the locale's lists. Taking the locale at load time means all of it is checked once, in one place, and `generate` and `write` receive a spec that is already fully resolved.
 
 The spec-level value is only checked for form (`ll_CC`). Whether a locale is *usable* is decided per field: a built-in field needs a bundled locale, a `faker` field needs one Faker supports. The earlier draft restricted the spec-level key to the two bundled locales, which made a German dataset repeat `locale` on every Faker field; checking per field removes that without weakening any error.
 
@@ -78,7 +80,7 @@ Justification for the dependency, as the project rules require: realistic data f
 - Each `faker` field gets its own Faker instance, seeded from the field's stream. `Decimal` results become `float`.
 - The error for a missing library says `pip install faker`. That is correct however dataspecter itself was installed; the extra is described in the README as the convenient form once the package is published.
 
-**The minimum version is measured, not guessed.** The first Faker task runs the bridge's three touch points (provider lookup, `seed_instance`, calling a provider) against the currently released Faker, records the version, and sets the lower bound from what it verifies.
+**The minimum version is measured, not guessed.** The bridge's three touch points (provider lookup through `get_providers`, `seed_instance`, calling a provider) were run against Faker 20.0.0, 25.0.0, 30.0.0 and 40.40.0, each in an isolated environment, and behaved identically. The lower bound is therefore `faker>=20`, and development and the test suite use 40.40.0.
 
 ### 7. The trust boundary
 
@@ -102,6 +104,18 @@ Before any list is merged, `src/dataspecter/data/SOURCES.md` records for each on
 ### 10. The format version stays at 1
 
 New types and an optional key. A spec that already declared a custom type with one of the new built-in names keeps its own definition, by the precedence rule.
+
+## Measurements
+
+Run with `benchmarks/bench.py`, best of three, Python 3.12 on the development laptop (Windows), the same machine as the baseline of 121,191 rows/s recorded in `add-nested-objects`.
+
+| Scenario | Rows | Throughput | Peak traced memory |
+|---|---|---|---|
+| flat | 1,000,000 | 124,096 rows/s (2% above baseline) | unchanged code path |
+| realistic (name, email, Indian phone, address) | 1,000,000 | 62,207 rows/s | 0.46 MB (same at 200,000 rows) |
+| faker (one `company` field) | 100,000 | 6,762 rows/s | not measured |
+
+The flat figure is within the 15% allowed, and the built-in types keep memory flat. One Faker field is roughly ten times slower than a whole record of built-in types, which is why the reference recommends the built-ins where speed matters.
 
 ## Risks / Trade-offs
 

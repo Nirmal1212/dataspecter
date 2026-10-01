@@ -62,7 +62,13 @@ def test_example_shipping_city_is_read_from_the_customers_address():
         address = customers[order["customer_id"]]["address"]
         assert order["ship_city"] == (address["city"] if address else None)
     assert any(order["ship_city"] is None for order in orders)
-    assert simulation.columns("customer")[-2:] == ("address.city", "address.postcode")
+    assert simulation.columns("customer")[-5:] == (
+        "address.street",
+        "address.city",
+        "address.state",
+        "address.postcode",
+        "address.country",
+    )
 
 
 def test_example_text_fields_types_and_hidden_fields():
@@ -84,3 +90,27 @@ def test_example_text_fields_types_and_hidden_fields():
         "list_price.amount",
         "list_price.currency",
     )
+
+
+def test_example_realistic_fields_hold_together():
+    import re
+
+    from dataspecter.data import en_in, en_us
+
+    spec = dataspecter.load_spec(EXAMPLES / "shop.yaml")
+    customers = list(dataspecter.generate(spec).records("customer"))
+    state_of = {city: state for city, state, _ in en_in.CITIES}
+
+    for row in customers:
+        first, last = row["name"].split(" ", 1)
+        assert first in en_in.GIVEN_NAMES and last in en_in.FAMILY_NAMES
+        assert row["email"].startswith(f"{first.lower()}.")
+        assert re.fullmatch(r"\+91-[6-9]\d{9}", row["mobile"])
+        if row["address"]:
+            assert row["address"]["state"] == state_of[row["address"]["city"]]
+    assert len({row["mobile"] for row in customers}) == len(customers)
+
+    american = dataspecter.load_spec(EXAMPLES / "shop.yaml", locale="en_US")
+    row = next(dataspecter.generate(american).records("customer"))
+    assert row["name"].split(" ", 1)[0] in en_us.GIVEN_NAMES
+    assert row["mobile"].startswith("+1-")

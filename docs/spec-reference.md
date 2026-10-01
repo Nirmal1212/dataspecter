@@ -8,6 +8,8 @@ Several things can be written two ways: a **long form**, where everything is spe
 - [Entities](#entities)
 - [Long form and shorthand at a glance](#long-form-and-shorthand-at-a-glance)
 - [Field types](#field-types)
+- [Realistic data](#realistic-data)
+- [Locale](#locale)
 - [Keys every field accepts](#keys-every-field-accepts)
 - [Custom types](#custom-types)
 - [Nulls](#nulls)
@@ -23,6 +25,7 @@ Several things can be written two ways: a **long form**, where everything is spe
 ```yaml
 version: 1          # required, must be 1
 seed: 42            # optional, non-negative integer
+locale: en_IN       # optional, for names, phones and addresses; see Locale
 output:             # optional
   format: csv       # csv, json or jsonl
   dir: output/shop  # relative paths resolve against the current working directory
@@ -346,6 +349,133 @@ contact:
 
 See [References](#references).
 
+## Realistic data
+
+These types produce names, contact details and addresses without any lists from you. They come in two groups: built-in types backed by data bundled with dataspecter for India (`en_IN`) and the United States (`en_US`), and the optional `faker` type for everything else.
+
+```yaml
+name:   {type: full_name}
+first:  {type: first_name}
+last:   {type: last_name}
+email:  {type: email}
+mobile: {type: phone}
+home:   {type: address}
+```
+
+| Type | Produces | Options | `unique` |
+|---|---|---|---|
+| `first_name` | a given name | `locale` | yes, up to the number of bundled names |
+| `last_name` | a family name | `locale` | yes, up to the number of bundled names |
+| `full_name` | a given and a family name | `locale`, `format` | yes, up to their product |
+| `email` | an email address | `locale`, `domain` | yes |
+| `phone` | a phone number, as text | `locale`, `pattern` | yes, up to what the format allows |
+| `address` | an object: `street`, `city`, `state`, `postcode`, `country` | `locale`, `fields` | no |
+
+### Names
+
+```yaml
+name:   {type: full_name}
+formal: {type: full_name, format: last_first}
+```
+
+`format` is `first_last` (the default, `Asha Rao`) or `last_first` (`Rao, Asha`). Names are chosen uniformly from the bundled lists; they do not follow the frequencies of a real population.
+
+### `email`
+
+```yaml
+email:      {type: email}
+work_email: {type: email, domain: acme.test, unique: true}
+```
+
+By default the domain is `example.com`, `example.org` or `example.net`. Those domains are reserved for documentation, so a generated address can never reach a real mailbox. Set `domain` to use your own.
+
+The address is generated on its own and does not match a name field beside it. For an email built from the record's own name, use a template; `slug` keeps it valid whatever the name contains:
+
+```yaml
+first_name: {type: first_name}
+last_name:  {type: last_name}
+email:      {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+```
+
+### `phone`
+
+```yaml
+mobile:      {type: phone}
+test_mobile: {type: phone, pattern: "+91-99999-#####"}
+```
+
+| Locale | Format | Can it be a real number? |
+|---|---|---|
+| `en_US` | `+1-NXX-555-01XX` | No. 555-0100 to 555-0199 is reserved for fiction. This limits the format to 80,000 distinct numbers. |
+| `en_IN` | `+91-` and ten digits starting 6 to 9 | **Yes.** India has no range reserved for test numbers, so some generated numbers belong to real people. |
+
+Never send messages or place calls to generated numbers. If your team has a prefix it knows to be safe, set `pattern`, which takes the same syntax as the [`pattern`](#pattern) type and replaces the locale's format.
+
+### `address`
+
+```yaml
+home:    {type: address}
+billing: {type: address, fields: [city, postcode]}
+```
+
+An address is an object, so it behaves like any [`object`](#object): JSON nests it, CSV writes `home.street`, `home.city` and so on, a template can read `{home.city}`, and a reference can read `$customer.home.city` or copy `$customer.home` whole.
+
+- `fields` selects which of the five fields to include, in the order listed.
+- The state is the one the city is in, and the postcode starts with a prefix that belongs to the city. The remaining digits are random, so a full postcode may not be one in use.
+- The street is a house number and a common street name; it is not a real address.
+- Every field is text. A United States ZIP code beginning with 0 keeps its zero.
+
+### `faker`
+
+For other locales, and for data the built-ins do not cover (companies, job titles, and much else), the `faker` type calls a provider of the [Faker](https://faker.readthedocs.io) library.
+
+```yaml
+company: {type: faker, provider: company}
+city:    {type: faker, provider: city, locale: de_DE}
+joined:  {type: faker, provider: date_between, args: {start_date: "-30d", end_date: today}}
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `provider` | yes | The name of a Faker provider method. |
+| `locale` | no | Any locale Faker supports. Defaults to the locale in force. |
+| `args` | no | Keyword arguments for the provider. |
+
+Faker is optional. Install it with `pip install faker`, or as the extra `pip install "dataspecter[faker]"` once dataspecter is installed from a package index. Without it, a spec that uses the `faker` type is rejected with that instruction; every other spec works as before.
+
+What a spec can and cannot do through this type:
+
+- **Only providers can be called.** `provider` must be a method that one of Faker's providers defines. Names beginning with an underscore, and methods of the Faker object itself such as `seed_instance`, are refused.
+- **Only plain arguments.** Each argument is text, a number, a boolean, null, or a list of those.
+- **Only single values come back.** Text, numbers, booleans, dates and date-times. A provider that returns a structure or bytes, such as `profile`, is rejected.
+- The provider is tried once when the spec is validated, so wrong arguments are reported before generation starts. Every generated value is checked as well.
+- `unique: true` is supported; if the provider runs out of new values, generation stops with an error.
+
+Faker values are reproducible for a given seed **and a given Faker version**: Faker's data changes between releases. Faker is also much slower than the built-in types.
+
+## Locale
+
+The locale decides which country's names, phone format and addresses the built-in types use, and is the default for `faker` fields. It is resolved per field, highest first:
+
+1. `locale` on the field
+2. `--locale` on the command line, or the `locale` argument of `load_spec`
+3. `locale` at the top of the spec
+4. `en_US`
+
+```yaml
+version: 1
+locale: en_IN
+entities:
+  customer:
+    count: 100
+    fields:
+      name: {type: full_name}
+      mobile: {type: phone}
+      us_office: {type: phone, locale: en_US}
+```
+
+The spec-level value can be any locale code of the form `ll_CC`. Whether it can be used is decided field by field: a built-in type needs `en_IN` or `en_US` and is rejected otherwise, with a pointer to `faker`; a `faker` field needs a locale Faker supports.
+
 ## Keys every field accepts
 
 | Key | Meaning | Default |
@@ -633,7 +763,8 @@ Values are not coerced in the long form: `min: "18"` is rejected for a number, a
 - A field cannot hold a list.
 - References with different links choose independently, so they can land on the same row. With 100 accounts, about one transfer in 100 has the same sender and receiver.
 - Reference rows are chosen uniformly, so the number of children per parent cannot be controlled.
-- Apart from templates there are no rules across fields (such as one date falling after another), and there are no built-in names, emails or addresses.
+- Apart from templates there are no rules across fields (such as one date falling after another).
+- The built-in realistic types cover `en_IN` and `en_US` only, choose names uniformly, and do not correlate with each other: a phone's area code is unrelated to the address beside it.
 - `unique` applies to one field within one entity; a combination of fields cannot be declared unique.
 - Custom types cannot be shared between spec files.
 - The values of referenced fields are held in memory while their children are generated; everything else is streamed.

@@ -1,6 +1,7 @@
 {
   "version": 1,
   "seed": 42,
+  "locale": "en_IN",
   "output": { "format": "csv", "dir": "output/shop" },
   "types": {
     "money": {
@@ -17,20 +18,14 @@
       "fields": {
         "id": { "type": "sequence", "start": 1001 },
         "external_ref": { "type": "uuid" },
-        "first_name": {
-          "type": "choice",
-          "values": ["Asha", "Ravi", "Meera", "José", "Erin", "Tom"],
-          "hidden": true
-        },
-        "last_name": {
-          "type": "choice",
-          "values": ["Rao", "Nair", "O'Brien", "Smith", "Müller"],
-          "hidden": true
-        },
+        "first_name": { "type": "first_name", "hidden": true },
+        "last_name": { "type": "last_name", "hidden": true },
+        "name": { "type": "template", "template": "{first_name} {last_name}" },
         "email": {
           "type": "template",
           "template": "{first_name|slug}.{last_name|slug}@example.com"
         },
+        "mobile": { "type": "phone", "unique": true },
         "tier": { "type": "choice", "values": ["free || 70", "pro || 25", "enterprise || 5"] },
         "age": {
           "type": "integer",
@@ -43,14 +38,7 @@
           "type": "choice",
           "values": ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"]
         },
-        "address": {
-          "type": "object",
-          "null_probability": 0.1,
-          "fields": {
-            "city": { "type": "choice", "values": ["Pune", "Austin", "Leeds", "Kochi", "Denver"] },
-            "postcode": { "type": "integer", "min": 10000, "max": 99999 }
-          }
-        }
+        "address": { "type": "address", "null_probability": 0.1 }
       }
     },
     "product": {

@@ -4,6 +4,8 @@
 # This file uses the shorthand forms. docs/spec-reference.md shows the long form of each.
 version: 1
 seed: 42
+# Names, phone numbers and addresses are Indian. Run with --locale en_US for American ones.
+locale: en_IN
 output:
   format: csv
   dir: output/shop
@@ -22,12 +24,15 @@ entities:
     fields:
       id: {type: sequence, start: 1001}
       external_ref: {type: uuid}
-      # Hidden fields are generated and can be read by templates, but are not written out.
-      first_name: {type: choice, values: [Asha, Ravi, Meera, José, Erin, Tom], hidden: true}
-      last_name: {type: choice, values: [Rao, Nair, O'Brien, Smith, Müller], hidden: true}
+      # Built-in realistic types need no lists. Hidden fields are generated and can be read by
+      # templates, but are not written out.
+      first_name: {type: first_name, hidden: true}
+      last_name: {type: last_name, hidden: true}
       # A template builds text from other fields of the same record. slug makes any name
       # safe for an email address.
+      name: {type: template, template: "{first_name} {last_name}"}
       email: {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+      mobile: {type: phone, unique: true}
       # value || weight: 70% free, 25% pro, 5% enterprise. Weights are relative.
       tier: {type: choice, values: [free || 70, pro || 25, enterprise || 5]}
       # min to max || weight: most customers are young, a few are over 60.
@@ -39,14 +44,10 @@ entities:
       referral_code:
         type: choice
         values: [FRIEND10 || 0.2, LAUNCH25 || 0.2, PARTNER || 0.1, " || 0.5"]
-      # An object groups fields. In CSV it becomes the columns address.city and
-      # address.postcode; in JSON it stays nested. One customer in ten has no address.
-      address:
-        type: object
-        null_probability: 0.1
-        fields:
-          city: {type: choice, values: [Pune, Austin, Leeds, Kochi, Denver]}
-          postcode: {type: integer, min: 10000, max: 99999}
+      # An address is an object: street, city, state, postcode and country, consistent with
+      # each other. In CSV it becomes the columns address.street, address.city and so on; in
+      # JSON it stays nested. One customer in ten has no address.
+      address: {type: address, null_probability: 0.1}
 
   product:
     count: 50
