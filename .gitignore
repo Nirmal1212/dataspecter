@@ -1,0 +1,32 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Build output
+build/
+dist/
