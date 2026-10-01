@@ -47,4 +47,4 @@
 - [x] 7.1 Re-run the flat benchmark and one with a template, a pattern and a unique field at one million rows on the same machine as the baseline, record time and peak memory in `design.md`, and verify flat throughput is within 15% of the baseline
 - [x] 7.2 Verify `uv run pytest`, `uv run ruff check .` and `openspec validate add-text-and-custom-types --strict` all pass
 - [x] 7.3 Add entries under `[Unreleased]` in `CHANGELOG.md` for patterns, templates, hidden fields, unique fields and custom types, and verify each item in the proposal is named
-- [ ] 7.4 Archive the change with `/opsx:archive` and verify `openspec/specs/` contains the new and modified requirements
+- [x] 7.4 Archive the change with `/opsx:archive` and verify `openspec/specs/` contains the new and modified requirements
