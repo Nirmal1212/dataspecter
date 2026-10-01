@@ -26,6 +26,7 @@ _NAME_RULE = (
     "names must start with a letter or underscore and contain only letters, digits and underscores"
 )
 _WEIGHT_RULE = "weights must be non-negative numbers with a sum greater than zero"
+_REFERENCE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)")
 _BAD = object()  # a key that was present but invalid, and has already been reported
 
 
@@ -244,6 +245,12 @@ def _is_scalar(value: Any) -> bool:
 
 def _is_name(value: Any) -> bool:
     return isinstance(value, str) and _NAME.fullmatch(value) is not None
+
+
+def _reference_parts(raw: Any) -> tuple[str, str] | None:
+    """Split a ``$entity.field`` shorthand into its two names; None if `raw` is not one."""
+    match = _REFERENCE.fullmatch(raw) if isinstance(raw, str) else None
+    return (match[1], match[2]) if match else None
 
 
 def _listed(items: Any) -> str:
@@ -596,8 +603,18 @@ _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
 def _parse_field(raw: Any, path: str, problems: list[Problem]) -> Field | None:
     start = len(problems)
     supported = f"supported types: {', '.join(_FIELD_TYPES)}"
+    if isinstance(raw, str):
+        parts = _reference_parts(raw)
+        if parts is None:
+            message = f"{raw!r} is not a field definition; a reference is written '$entity.field'"
+            problems.append(Problem(path, message))
+            return None
+        return ReferenceField(entity=parts[0], field=parts[1])
     if not isinstance(raw, Mapping):
-        problems.append(Problem(path, f"must be a mapping with a 'type'; {supported}"))
+        message = (
+            f"a field must be a mapping with a 'type' or a '$entity.field' reference; {supported}"
+        )
+        problems.append(Problem(path, message))
         return None
     if "type" not in raw:
         problems.append(Problem(path, f"missing required key 'type'; {supported}"))
@@ -741,11 +758,10 @@ def _check_references(raw_entities: Mapping[Any, Any], problems: list[Problem]) 
         if declared[name] is None:
             continue
         for field_name, raw_field in raw_entity["fields"].items():
-            if not isinstance(raw_field, Mapping) or raw_field.get("type") != "reference":
+            reference = _raw_reference(raw_field)
+            if reference is None:
                 continue
-            target, target_field = raw_field.get("entity"), raw_field.get("field")
-            if not isinstance(target, str) or not isinstance(target_field, str):
-                continue  # already reported by the field parser
+            target, target_field = reference
             path = _at(_at(_at("entities", name), "fields"), field_name)
             if target == name:
                 problems.append(Problem(path, "an entity cannot reference itself"))
@@ -764,6 +780,17 @@ def _check_references(raw_entities: Mapping[Any, Any], problems: list[Problem]) 
     if cycle:
         message = f"circular reference between entities: {' -> '.join(cycle)}"
         problems.append(Problem("entities", message))
+
+
+def _raw_reference(raw_field: Any) -> tuple[str, str] | None:
+    """Return the (entity, field) a raw field definition refers to, in either form, if any."""
+    if isinstance(raw_field, str):
+        return _reference_parts(raw_field)
+    if isinstance(raw_field, Mapping) and raw_field.get("type") == "reference":
+        target, target_field = raw_field.get("entity"), raw_field.get("field")
+        if isinstance(target, str) and isinstance(target_field, str):
+            return target, target_field
+    return None  # not a reference, or malformed and already reported by the field parser
 
 
 def _find_cycle(edges: Mapping[str, list[str]]) -> list[str] | None:

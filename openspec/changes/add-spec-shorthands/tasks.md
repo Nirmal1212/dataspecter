@@ -2,8 +2,8 @@
 
 ## 1. Reference shorthand
 
-- [ ] 1.1 Accept a `$entity.field` string as a field definition in `spec.py`, producing the same `ReferenceField` as the mapping form, and reject any other non-mapping definition with an error showing the expected form; verify with tests for equality with the mapping form, `$customer`, `$customer.id.extra`, `customer.id`, `$ customer.id`, a number or list as the definition, and `$`-prefixed text staying literal in a `constant` value and in `choice` values
-- [ ] 1.2 Make the cross-entity pass read shorthand references as well as mappings, and verify with tests that an unknown entity, an unknown field, a self-reference and a cycle written in shorthand are each reported at the field's path
+- [x] 1.1 Accept a `$entity.field` string as a field definition in `spec.py`, producing the same `ReferenceField` as the mapping form, and reject any other non-mapping definition with an error showing the expected form; verify with tests for equality with the mapping form, `$customer`, `$customer.id.extra`, `customer.id`, `$ customer.id`, a number or list as the definition, and `$`-prefixed text staying literal in a `constant` value and in `choice` values
+- [x] 1.2 Make the cross-entity pass read shorthand references as well as mappings, and verify with tests that an unknown entity, an unknown field, a self-reference and a cycle written in shorthand are each reported at the field's path
 - [ ] 1.3 Document the shorthand in the References section of `docs/spec-reference.md`, and verify with a test that the snippet shown there loads as a valid spec
 
 ## 2. Shared rows and links

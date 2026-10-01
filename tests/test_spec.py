@@ -453,3 +453,62 @@ def test_multiple_problems_are_reported_together_with_their_paths():
 
     paths = {problem.path for problem in problems_of(raw)}
     assert paths == {"entities.order.fields.amount", "entities.order.fields.customer_id"}
+
+
+# --- reference shorthand ----------------------------------------------------------------------
+
+
+def test_reference_shorthand_equals_the_mapping_form():
+    short = shop({"customer_id": "$customer.id"})
+    long = shop({"customer_id": {"type": "reference", "entity": "customer", "field": "id"}})
+
+    assert load_spec(short) == load_spec(long)
+
+
+@pytest.mark.parametrize(
+    "text", ["$customer", "$customer.id.extra", "customer.id", "$ customer.id"]
+)
+def test_malformed_reference_shorthand(text):
+    [problem] = problems_of(shop({"customer_id": text}))
+
+    assert problem.path == "entities.order.fields.customer_id"
+    assert "'$entity.field'" in problem.message
+
+
+@pytest.mark.parametrize("definition", [42, ["$customer.id"], None])
+def test_field_that_is_neither_a_mapping_nor_a_reference(definition):
+    [problem] = problems_of(shop({"customer_id": definition}))
+
+    assert "a mapping with a 'type' or a '$entity.field' reference" in problem.message
+
+
+def test_dollar_text_is_literal_in_constant_and_choice_values():
+    spec = load_spec(
+        shop(
+            {
+                "note": {"type": "constant", "value": "$customer.id"},
+                "price": {"type": "choice", "values": ["$5.00", "$customer.id"]},
+            }
+        )
+    )
+
+    fields = spec.entities["order"].fields
+    assert fields["note"].value == "$customer.id"
+    assert fields["price"].values == ("$5.00", "$customer.id")
+
+
+def test_shorthand_unknown_entity_and_field_are_reported_at_the_field():
+    [problem] = problems_of(shop({"customer_id": "$client.id"}))
+    assert problem.path == "entities.order.fields.customer_id"
+    assert "unknown entity 'client'" in problem.message
+
+    [problem] = problems_of(shop({"customer_id": "$customer.uid"}))
+    assert problem.path == "entities.order.fields.customer_id"
+    assert "entity 'customer' has no field 'uid'" in problem.message
+
+
+def test_shorthand_self_reference_and_cycle():
+    assert "an entity cannot reference itself" in problem_text(shop({"parent": "$order.parent"}))
+
+    cyclic = shop({"customer_id": "$customer.last_order"}, {"last_order": "$order.customer_id"})
+    assert "circular reference between entities" in problem_text(cyclic)
