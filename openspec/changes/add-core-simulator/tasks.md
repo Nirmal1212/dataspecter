@@ -45,9 +45,9 @@
 
 ## 7. Command line
 
-- [ ] 7.1 Implement `cli.py` with `argparse`: `generate` (with `--out`, `--format`, `--seed`), `validate`, `--version` and `--help`; verify with tests that call `main()` for a successful generate, each option override, a valid `validate`, `--version` and `generate --help`
-- [ ] 7.2 Map failures to exit codes and stderr (2 for an invalid spec, unreadable spec file or bad arguments; 1 otherwise) and verify with tests for an invalid spec on `generate` leaving no files, an invalid spec on `validate`, a missing file, `--format xml`, and an unwritable output path
-- [ ] 7.3 Add a test that the files written by the CLI and by `write()` for the same spec, seed and format are byte-for-byte identical
+- [x] 7.1 Implement `cli.py` with `argparse`: `generate` (with `--out`, `--format`, `--seed`), `validate`, `--version` and `--help`; verify with tests that call `main()` for a successful generate, each option override, a valid `validate`, `--version` and `generate --help`
+- [x] 7.2 Map failures to exit codes and stderr (2 for an invalid spec, unreadable spec file or bad arguments; 1 otherwise) and verify with tests for an invalid spec on `generate` leaving no files, an invalid spec on `validate`, a missing file, `--format xml`, and an unwritable output path
+- [x] 7.3 Add a test that the files written by the CLI and by `write()` for the same spec, seed and format are byte-for-byte identical
 
 ## 8. Examples and documentation
 
