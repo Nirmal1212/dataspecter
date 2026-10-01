@@ -11,7 +11,7 @@ from statistics import fmean
 
 import pytest
 
-from dataspecter.generators import field_generator, stream
+from dataspecter.generators import RowPick, field_generator, stream
 from dataspecter.spec import load_spec
 
 from .helpers import spec_of
@@ -19,9 +19,9 @@ from .helpers import spec_of
 ROWS = 10_000
 
 
-def draw(field: dict, rows: int = ROWS, seed: int = 1, referenced=None) -> list:
+def draw(field: dict, rows: int = ROWS, seed: int = 1) -> list:
     model = load_spec(spec_of(field)).entities["thing"].fields["value"]
-    generate = field_generator(model, seed, "thing", "value", referenced)
+    generate = field_generator(model, seed, "thing", "value")
     return [generate() for _ in range(rows)]
 
 
@@ -221,24 +221,43 @@ def test_constant_value():
     assert set(draw({"type": "constant", "value": "EUR"}, rows=50)) == {"EUR"}
 
 
-def test_reference_draws_from_the_target_values():
-    field = {"type": "reference", "entity": "thing", "field": "value"}
-    model = (
-        load_spec(
-            {
-                "version": 1,
-                "entities": {
-                    "thing": {"count": 1, "fields": {"value": {"type": "sequence"}}},
-                    "other": {"count": 1, "fields": {"value": field}},
-                },
-            }
-        )
-        .entities["other"]
-        .fields["value"]
+def test_reference_reads_the_row_its_pick_chose():
+    spec = load_spec(
+        {
+            "version": 1,
+            "entities": {
+                "thing": {"count": 3, "fields": {"value": {"type": "sequence"}}},
+                "other": {"count": 1, "fields": {"value": "$thing.value"}},
+            },
+        }
     )
-    generate = field_generator(model, 1, "other", "value", referenced=[10, 20, 30])
+    column = [10, 20, 30]
+    pick = RowPick(1, "other", "thing", None, rows=3)
+    model = spec.entities["other"].fields["value"]
+    generate = field_generator(model, 1, "other", "value", lambda: column[pick.index])
 
-    assert {generate() for _ in range(200)} == {10, 20, 30}
+    seen = set()
+    for _ in range(200):
+        pick.advance()
+        value = generate()
+        assert value == column[pick.index]
+        seen.add(value)
+    assert seen == {10, 20, 30}
+
+
+def test_row_picks_differ_by_link_and_target():
+    def indexes(target, link):
+        pick = RowPick(1, "transfer", target, link, rows=1000)
+        chosen = []
+        for _ in range(20):
+            pick.advance()
+            chosen.append(pick.index)
+        return chosen
+
+    assert indexes("account", "sender") == indexes("account", "sender")
+    assert indexes("account", "sender") != indexes("account", "receiver")
+    assert indexes("account", "sender") != indexes("account", None)
+    assert indexes("account", "origin") != indexes("depot", "origin")
 
 
 # --- nulls ------------------------------------------------------------------------------------
@@ -280,3 +299,70 @@ def test_changing_null_probability_does_not_shift_the_values():
 
     kept = [(a, b) for a, b in zip(without_nulls, with_nulls, strict=True) if b is not None]
     assert kept and all(a == b for a, b in kept)
+
+
+# --- weighted values with nulls and types -----------------------------------------------------
+
+
+def test_listed_null_value_is_chosen_by_its_weight():
+    values = draw({"type": "choice", "values": ["FRIEND10", None], "weights": [1, 4]})
+
+    assert abs(share(values, lambda v: v is None) - 0.8) < 0.03
+
+
+def test_null_entry_with_an_inline_weight():
+    values = draw(
+        {
+            "type": "choice",
+            "values": ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"],
+        }
+    )
+    counts = Counter(values)
+
+    for value, expected in (("FRIEND10", 0.2), ("LAUNCH25", 0.2), ("PARTNER", 0.1), (None, 0.5)):
+        assert abs(counts[value] / ROWS - expected) < 0.03
+
+
+def test_inline_and_listed_weights_generate_the_same_data():
+    inline = draw({"type": "choice", "values": ["free || 70", "pro || 30"]})
+    listed = draw({"type": "choice", "values": ["free", "pro"], "weights": [70, 30]})
+
+    assert inline == listed
+
+
+def test_the_remaining_share_follows_the_fields_own_rules():
+    values = draw({"type": "choice", "values": ["a", "b"], "null_probability": 0.8})
+    counts = Counter(values)
+
+    assert abs(counts[None] / ROWS - 0.8) < 0.03
+    assert abs(counts["a"] / ROWS - 0.1) < 0.03
+    assert abs(counts["b"] / ROWS - 0.1) < 0.03
+
+
+def test_null_probability_combined_with_a_null_entry():
+    field = {"type": "choice", "values": ["yes || 0.5", " || 0.5"], "null_probability": 0.5}
+
+    assert abs(share(draw(field), lambda v: v is None) - 0.75) < 0.03
+
+
+def test_typed_inline_values_are_generated_in_their_type():
+    field = {"type": "choice", "value_type": "integer", "values": ["1 || 60", "2 || 30", "5 || 10"]}
+    values = draw(field)
+
+    assert set(values) == {1, 2, 5}
+    assert all(type(value) is int for value in values)
+
+
+def test_range_shorthand_generates_the_same_data_as_mappings():
+    short = draw({"type": "integer", "ranges": ["18 to 35 || 0.7", "36 to 90 || 0.3"]})
+    long = draw(
+        {
+            "type": "integer",
+            "ranges": [
+                {"min": 18, "max": 35, "weight": 0.7},
+                {"min": 36, "max": 90, "weight": 0.3},
+            ],
+        }
+    )
+
+    assert short == long

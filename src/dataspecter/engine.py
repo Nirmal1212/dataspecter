@@ -6,8 +6,11 @@ import secrets
 from collections.abc import Iterator
 from typing import Any
 
-from dataspecter.generators import Generator, field_generator
+from dataspecter.generators import Generator, RowPick, field_generator
 from dataspecter.spec import Entity, ReferenceField, Spec
+
+# The picks of one entity, keyed by (target entity, link).
+Picks = dict[tuple[str, str | None], RowPick]
 
 
 def resolve_seed(spec: Spec, seed: int | None = None) -> int:
@@ -47,7 +50,7 @@ class Simulation:
 
     Rows are produced lazily, one at a time, so memory does not grow with the row count. The
     exception is fields that other entities reference: their values are kept so that the
-    referencing fields can draw from them.
+    referencing fields can read from them.
     """
 
     def __init__(self, spec: Spec, seed: int | None = None):
@@ -69,28 +72,57 @@ class Simulation:
             raise KeyError(f"unknown entity {entity!r}; entities in this spec: {known}")
         return self._rows(self.spec.entities[entity])
 
-    def _generator(self, entity: Entity, name: str) -> Generator:
+    def _picks(self, entity: Entity, names: list[str]) -> Picks:
+        """Build one row pick per (target entity, link) used by the named fields.
+
+        Every reference on the same link reads the row its pick chose, which is how several
+        fields come to describe the same parent row.
+        """
+        picks: Picks = {}
+        for name in names:
+            field = entity.fields[name]
+            if isinstance(field, ReferenceField) and (field.entity, field.link) not in picks:
+                rows = self.spec.entities[field.entity].count
+                picks[field.entity, field.link] = RowPick(
+                    self.seed, entity.name, field.entity, field.link, rows
+                )
+        return picks
+
+    def _generator(self, entity: Entity, name: str, picks: Picks) -> Generator:
         field = entity.fields[name]
-        referenced = None
+        read = None
         if isinstance(field, ReferenceField):
-            referenced = self._column(field.entity, field.field)
-        return field_generator(field, self.seed, entity.name, name, referenced)
+            column = self._column(field.entity, field.field)
+            pick = picks[field.entity, field.link]
+
+            def read() -> Any:
+                return column[pick.index]
+
+        return field_generator(field, self.seed, entity.name, name, read)
 
     def _column(self, entity_name: str, field_name: str) -> list[Any]:
         """Return every value of a referenced field, generating them if no pass has yet.
 
-        A field's values depend only on its own stream, so producing the column on its own
-        gives exactly the values a full pass over the entity's rows gives.
+        A field's values depend only on its own stream and, for a reference, on its link's
+        pick, so producing the column on its own gives exactly the values a full pass over the
+        entity's rows gives.
         """
         key = (entity_name, field_name)
         if key not in self._columns:
             entity = self.spec.entities[entity_name]
-            generate = self._generator(entity, field_name)
-            self._columns[key] = [generate() for _ in range(entity.count)]
+            picks = self._picks(entity, [field_name])
+            generate = self._generator(entity, field_name, picks)
+            column = []
+            for _ in range(entity.count):
+                for pick in picks.values():
+                    pick.advance()
+                column.append(generate())
+            self._columns[key] = column
         return self._columns[key]
 
     def _rows(self, entity: Entity) -> Iterator[dict[str, Any]]:
-        generators = {name: self._generator(entity, name) for name in entity.fields}
+        picks = self._picks(entity, list(entity.fields))
+        generators = {name: self._generator(entity, name, picks) for name in entity.fields}
         # Collect referenced fields in passing, so a later entity need not regenerate them.
         collecting: dict[str, list[Any]] = {
             name: []
@@ -98,6 +130,8 @@ class Simulation:
             if (entity.name, name) in self._referenced and (entity.name, name) not in self._columns
         }
         for _ in range(entity.count):
+            for pick in picks.values():
+                pick.advance()
             row = {name: generate() for name, generate in generators.items()}
             for name, column in collecting.items():
                 column.append(row[name])

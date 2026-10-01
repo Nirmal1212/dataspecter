@@ -7,15 +7,14 @@
       "count": 1000,
       "fields": {
         "id": { "type": "sequence", "start": 1001 },
-        "external_ref": { "type": "uuid" },
-        "tier": { "type": "choice", "values": ["free || 70", "pro || 25", "enterprise || 5"] },
+        "tier": {
+          "type": "choice",
+          "values": ["free || 70", "pro || 25", "enterprise || 5"]
+        },
         "age": {
           "type": "integer",
           "ranges": ["18 to 35 || 0.7", "36 to 60 || 0.25", "61 to 90 || 0.05"]
         },
-        "country": { "type": "choice", "values": ["IN", "US", "GB", "DE"] },
-        "marketing_opt_in": { "type": "boolean", "true_probability": 0.3 },
-        "signup_date": { "type": "date", "min": "2022-01-01", "max": "2025-12-31" },
         "referral_code": {
           "type": "choice",
           "values": ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"]
@@ -26,7 +25,6 @@
       "count": 50,
       "fields": {
         "id": { "type": "sequence" },
-        "category": { "type": "choice", "values": ["books", "games", "music", "tools"] },
         "price": {
           "type": "float",
           "distribution": "normal",
@@ -35,9 +33,7 @@
           "min": 5,
           "max": 200,
           "precision": 2
-        },
-        "currency": { "type": "constant", "value": "EUR" },
-        "in_stock": { "type": "boolean", "true_probability": 0.9 }
+        }
       }
     },
     "order": {
@@ -45,17 +41,7 @@
       "fields": {
         "id": { "type": "uuid" },
         "customer_id": "$customer.id",
-        "customer_tier": "$customer.tier",
-        "status": {
-          "type": "choice",
-          "values": ["delivered || 0.75", "shipped || 0.12", "pending || 0.08", "cancelled || 0.05"]
-        },
-        "placed_at": {
-          "type": "datetime",
-          "min": "2025-01-01T00:00:00",
-          "max": "2025-12-31T23:59:59"
-        },
-        "discount_pct": { "type": "integer", "min": 5, "max": 30, "null_probability": 0.6 }
+        "customer_tier": "$customer.tier"
       }
     },
     "order_item": {
@@ -74,6 +60,13 @@
           "value_type": "integer",
           "values": ["0 || 80", "1 || 15", "2 || 5"]
         }
+      }
+    },
+    "transfer": {
+      "count": 200,
+      "fields": {
+        "from_customer": { "type": "reference", "entity": "customer", "field": "id", "link": "sender" },
+        "to_customer": { "type": "reference", "entity": "customer", "field": "id", "link": "receiver" }
       }
     }
   }

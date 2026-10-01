@@ -1,5 +1,7 @@
 # A small web shop: customers place orders, orders contain items, items point at products.
 # Run it with:  dataspecter generate examples/shop.yaml
+#
+# This file uses the shorthand forms. docs/spec-reference.md shows the long form of each.
 version: 1
 seed: 42
 output:
@@ -12,26 +14,17 @@ entities:
     fields:
       id: {type: sequence, start: 1001}
       external_ref: {type: uuid}
-      # 70% free, 25% pro, 5% enterprise. Weights are relative; they need not sum to 1.
-      tier:
-        type: choice
-        values: [free, pro, enterprise]
-        weights: [70, 25, 5]
-      # Weighted ranges: most customers are young, a few are over 60.
-      age:
-        type: integer
-        ranges:
-          - {min: 18, max: 35, weight: 0.7}
-          - {min: 36, max: 60, weight: 0.25}
-          - {min: 61, max: 90, weight: 0.05}
+      # value || weight: 70% free, 25% pro, 5% enterprise. Weights are relative.
+      tier: {type: choice, values: [free || 70, pro || 25, enterprise || 5]}
+      # min to max || weight: most customers are young, a few are over 60.
+      age: {type: integer, ranges: [18 to 35 || 0.7, 36 to 60 || 0.25, 61 to 90 || 0.05]}
       country: {type: choice, values: [IN, US, GB, DE]}
       marketing_opt_in: {type: boolean, true_probability: 0.3}
       signup_date: {type: date, min: 2022-01-01, max: 2025-12-31}
-      # Four customers in five have no referral code.
+      # An empty value is null: half of the customers have no referral code.
       referral_code:
         type: choice
-        values: [FRIEND10, LAUNCH25, PARTNER]
-        null_probability: 0.8
+        values: [FRIEND10 || 0.2, LAUNCH25 || 0.2, PARTNER || 0.1, " || 0.5"]
 
   product:
     count: 50
@@ -54,25 +47,24 @@ entities:
     count: 5000
     fields:
       id: {type: uuid}
-      # Each order belongs to one of the generated customers.
-      customer_id: {type: reference, entity: customer, field: id}
+      # $entity.field: each order belongs to one generated customer, and both fields below
+      # are read from that same customer.
+      customer_id: $customer.id
+      customer_tier: $customer.tier
       status:
         type: choice
-        values: [delivered, shipped, pending, cancelled]
-        weights: [0.75, 0.12, 0.08, 0.05]
+        values: [delivered || 0.75, shipped || 0.12, pending || 0.08, cancelled || 0.05]
       placed_at: {type: datetime, min: 2025-01-01T00:00:00, max: 2025-12-31T23:59:59}
       discount_pct: {type: integer, min: 5, max: 30, null_probability: 0.6}
 
   order_item:
     count: 12000
     fields:
-      id: {type: sequence, start: 1, step: 1}
-      order_id: {type: reference, entity: order, field: id}
-      product_id: {type: reference, entity: product, field: id}
-      quantity:
-        type: integer
-        ranges:
-          - {min: 1, max: 1, weight: 60}
-          - {min: 2, max: 3, weight: 30}
-          - {min: 4, max: 10, weight: 10}
-      unit_price: {type: float, min: 5, max: 200, precision: 2}
+      id: {type: sequence}
+      order_id: $order.id
+      # The id and the price come from the same product.
+      product_id: $product.id
+      unit_price: $product.price
+      quantity: {type: integer, ranges: [1 to 1 || 60, 2 to 3 || 30, 4 to 10 || 10]}
+      # value_type makes the inline values integers instead of text.
+      gift_wrap_level: {type: choice, value_type: integer, values: [0 || 80, 1 || 15, 2 || 5]}

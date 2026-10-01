@@ -453,3 +453,301 @@ def test_multiple_problems_are_reported_together_with_their_paths():
 
     paths = {problem.path for problem in problems_of(raw)}
     assert paths == {"entities.order.fields.amount", "entities.order.fields.customer_id"}
+
+
+# --- reference shorthand ----------------------------------------------------------------------
+
+
+def test_reference_shorthand_equals_the_mapping_form():
+    short = shop({"customer_id": "$customer.id"})
+    long = shop({"customer_id": {"type": "reference", "entity": "customer", "field": "id"}})
+
+    assert load_spec(short) == load_spec(long)
+
+
+@pytest.mark.parametrize(
+    "text", ["$customer", "$customer.id.extra", "customer.id", "$ customer.id"]
+)
+def test_malformed_reference_shorthand(text):
+    [problem] = problems_of(shop({"customer_id": text}))
+
+    assert problem.path == "entities.order.fields.customer_id"
+    assert "'$entity.field'" in problem.message
+
+
+@pytest.mark.parametrize("definition", [42, ["$customer.id"], None])
+def test_field_that_is_neither_a_mapping_nor_a_reference(definition):
+    [problem] = problems_of(shop({"customer_id": definition}))
+
+    assert "a mapping with a 'type' or a '$entity.field' reference" in problem.message
+
+
+def test_dollar_text_is_literal_in_constant_and_choice_values():
+    spec = load_spec(
+        shop(
+            {
+                "note": {"type": "constant", "value": "$customer.id"},
+                "price": {"type": "choice", "values": ["$5.00", "$customer.id"]},
+            }
+        )
+    )
+
+    fields = spec.entities["order"].fields
+    assert fields["note"].value == "$customer.id"
+    assert fields["price"].values == ("$5.00", "$customer.id")
+
+
+def test_shorthand_unknown_entity_and_field_are_reported_at_the_field():
+    [problem] = problems_of(shop({"customer_id": "$client.id"}))
+    assert problem.path == "entities.order.fields.customer_id"
+    assert "unknown entity 'client'" in problem.message
+
+    [problem] = problems_of(shop({"customer_id": "$customer.uid"}))
+    assert problem.path == "entities.order.fields.customer_id"
+    assert "entity 'customer' has no field 'uid'" in problem.message
+
+
+def test_shorthand_self_reference_and_cycle():
+    assert "an entity cannot reference itself" in problem_text(shop({"parent": "$order.parent"}))
+
+    cyclic = shop({"customer_id": "$customer.last_order"}, {"last_order": "$order.customer_id"})
+    assert "circular reference between entities" in problem_text(cyclic)
+
+
+# --- links ------------------------------------------------------------------------------------
+
+
+def test_reference_link_is_optional_and_named():
+    raw = shop(
+        {
+            "customer_id": {"type": "reference", "entity": "customer", "field": "id"},
+            "payer_id": {"type": "reference", "entity": "customer", "field": "id", "link": "payer"},
+        }
+    )
+    fields = load_spec(raw).entities["order"].fields
+
+    assert fields["customer_id"].link is None
+    assert fields["payer_id"].link == "payer"
+
+
+@pytest.mark.parametrize("link", ["the sender", "", 7, "a-b"])
+def test_invalid_link_name(link):
+    field = {"type": "reference", "entity": "customer", "field": "id", "link": link}
+    [problem] = problems_of(shop({"customer_id": field}))
+
+    assert problem.path == "entities.order.fields.customer_id.link"
+    assert "letters, digits and underscores" in problem.message
+
+
+# --- weighted value shorthand -----------------------------------------------------------------
+
+REFERRAL = ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"]
+
+
+def choice_field(values, **extra):
+    return (
+        load_spec(spec_of({"type": "choice", "values": values, **extra}))
+        .entities["thing"]
+        .fields["value"]
+    )
+
+
+def test_null_as_a_listed_choice_value():
+    field = choice_field(["FRIEND10", None], weights=[1, 4])
+
+    assert field.values == ("FRIEND10", None)
+    assert field.weights == (1, 4)
+
+
+def test_inline_weights():
+    field = choice_field(REFERRAL)
+
+    assert field.values == ("FRIEND10", "LAUNCH25", "PARTNER", None)
+    assert field.weights == (0.2, 0.2, 0.1, 0.5)
+
+
+def test_inline_weights_equal_the_listed_form():
+    inline = spec_of({"type": "choice", "values": ["free || 70", "pro || 30"]})
+    listed = spec_of({"type": "choice", "values": ["free", "pro"], "weights": [70, 30]})
+
+    assert load_spec(inline) == load_spec(listed)
+
+
+@pytest.mark.parametrize("values", [["free || 0.7", "pro"], ["free || 0.7", 10]])
+def test_only_some_entries_carry_a_weight(values):
+    [problem] = problems_of(spec_of({"type": "choice", "values": values}))
+
+    assert problem.path == "entities.thing.fields.value.values"
+    assert "either every value carries a weight" in problem.message
+
+
+@pytest.mark.parametrize("entry", ["PARTNER || lots", "PARTNER || 20%", "PARTNER ||", "A || 1e3"])
+def test_weight_that_is_not_a_number(entry):
+    [problem] = problems_of(spec_of({"type": "choice", "values": ["OK || 1", entry]}))
+
+    assert problem.path == "entities.thing.fields.value.values[1]"
+    assert "must be a non-negative number" in problem.message
+    assert repr(entry) in problem.message
+
+
+@pytest.mark.parametrize("values", [["A || 1", "B || -1"], ["A || 0", "B || 0"]])
+def test_inline_weights_follow_the_weight_rules(values):
+    [problem] = problems_of(spec_of({"type": "choice", "values": values}))
+
+    assert "non-negative numbers with a sum greater than zero" in problem.message
+
+
+def test_value_containing_the_separator_splits_on_the_last_one():
+    field = choice_field(["a || b || 0.5", "c || 0.5"])
+
+    assert field.values == ("a || b", "c")
+    assert field.weights == (0.5, 0.5)
+
+
+def test_plain_text_containing_the_separator_gets_a_hint():
+    [problem] = problems_of(spec_of({"type": "choice", "values": ["yes || no", "maybe"]}))
+
+    assert "declare 'weights' so every value is taken literally" in problem.message
+
+
+def test_entries_are_literal_when_weights_are_declared():
+    field = choice_field(["a || b", "c"], weights=[1, 1])
+
+    assert field.values == ("a || b", "c")
+
+
+def test_inline_value_is_text_by_default():
+    assert choice_field(["10 || 0.5", "20 || 0.5"]).values == ("10", "20")
+
+
+def test_integer_value_type():
+    field = choice_field(["1 || 60", "2 || 30", "-5 || 10", " || 5"], value_type="integer")
+
+    assert field.values == (1, 2, -5, None)
+    assert all(type(value) is int for value in field.values[:3])
+
+
+def test_float_and_boolean_value_types():
+    assert choice_field(["0.5 || 1", "2 || 1", ".25 || 1"], value_type="float").values == (
+        0.5,
+        2.0,
+        0.25,
+    )
+    assert choice_field(["true || 9", "false || 1", " || 1"], value_type="boolean").values == (
+        True,
+        False,
+        None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("value_type", "entry"),
+    [
+        ("integer", "2.5 || 1"),
+        ("integer", "two || 1"),
+        ("float", "1e3 || 1"),
+        ("boolean", "yes || 1"),
+    ],
+)
+def test_value_that_does_not_fit_the_declared_type(value_type, entry):
+    raw = spec_of({"type": "choice", "value_type": value_type, "values": ["1 || 1", entry]})
+    problems = [p for p in problems_of(raw) if p.path.endswith("values[1]")]
+
+    assert len(problems) == 1
+    assert f"value_type: {value_type}" in problems[0].message
+
+
+def test_unknown_value_type():
+    raw = spec_of({"type": "choice", "value_type": "number", "values": ["1 || 1"]})
+    [problem] = problems_of(raw)
+
+    assert problem.path == "entities.thing.fields.value.value_type"
+    assert "one of string, integer, float, boolean" in problem.message
+
+
+def test_value_type_without_inline_weights():
+    [problem] = problems_of(spec_of({"type": "choice", "value_type": "integer", "values": [1, 2]}))
+
+    assert problem.path == "entities.thing.fields.value.value_type"
+    assert "applies only to values written with inline weights" in problem.message
+
+
+# --- weighted range shorthand -----------------------------------------------------------------
+
+
+def ranges_of(kind, ranges, **extra):
+    field = (
+        load_spec(spec_of({"type": kind, "ranges": ranges, **extra}))
+        .entities["thing"]
+        .fields["value"]
+    )
+    return [(item.min, item.max, item.weight) for item in field.ranges]
+
+
+def test_range_shorthand_equals_the_mapping_form():
+    short = spec_of(
+        {"type": "integer", "ranges": ["18 to 35 || 0.7", "36 to 60 || 0.25", "61 to 90 || 0.05"]}
+    )
+    long = spec_of(
+        {
+            "type": "integer",
+            "ranges": [
+                {"min": 18, "max": 35, "weight": 0.7},
+                {"min": 36, "max": 60, "weight": 0.25},
+                {"min": 61, "max": 90, "weight": 0.05},
+            ],
+        }
+    )
+
+    assert load_spec(short) == load_spec(long)
+
+
+def test_negative_and_decimal_bounds():
+    assert ranges_of("float", ["-10.5 to -0.5 || 1", "0.4 to .9 || 3"]) == [
+        (-10.5, -0.5, 1),
+        (0.4, 0.9, 3),
+    ]
+
+
+@pytest.mark.parametrize("item", ["18 to 35||0.7", "18  to  35  ||  0.7", " 18 to 35 || 0.7 "])
+def test_spacing_around_the_weight_separator(item):
+    assert ranges_of("integer", [item]) == [(18, 35, 0.7)]
+
+
+def test_strings_and_mappings_together():
+    ranges = ["18 to 35 || 0.7", {"min": 36, "max": 90, "weight": 0.3}]
+
+    assert ranges_of("integer", ranges) == [(18, 35, 0.7), (36, 90, 0.3)]
+
+
+@pytest.mark.parametrize(
+    "item",
+    ["18-35 || 0.7", "18..35 || 0.7", "18to35 || 0.7", "18 to 35", "0.4...9 || 1", "1e2 to 5 || 1"],
+)
+def test_malformed_range(item):
+    [problem] = problems_of(spec_of({"type": "float", "ranges": ["1 to 2 || 1", item]}))
+
+    assert problem.path == "entities.thing.fields.value.ranges[1]"
+    assert "the expected form is 'min to max || weight'" in problem.message
+
+
+def test_decimal_bound_in_an_integer_field():
+    [problem] = problems_of(spec_of({"type": "integer", "ranges": ["1.5 to 3 || 1"]}))
+
+    assert problem.path == "entities.thing.fields.value.ranges[0].min"
+    assert "must be an integer" in problem.message
+
+
+def test_range_shorthand_minimum_above_maximum():
+    [problem] = problems_of(
+        spec_of({"type": "integer", "ranges": ["1 to 2 || 1", "35 to 18 || 1"]})
+    )
+
+    assert problem.path == "entities.thing.fields.value.ranges[1]"
+    assert "min must not exceed max" in problem.message
+
+
+def test_range_shorthand_weights_follow_the_weight_rules():
+    raw = spec_of({"type": "integer", "ranges": ["1 to 2 || 0", "3 to 4 || 0"]})
+
+    assert "sum greater than zero" in problem_text(raw)

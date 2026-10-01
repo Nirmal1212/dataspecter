@@ -32,3 +32,22 @@ def test_every_reference_in_the_example_resolves():
     assert all(row["customer_id"] in customers for row in data["order"])
     assert all(row["order_id"] in orders for row in data["order_item"])
     assert all(row["product_id"] in products for row in data["order_item"])
+
+
+def test_copied_values_in_the_example_come_from_the_same_parent_row():
+    simulation = dataspecter.generate(dataspecter.load_spec(EXAMPLES / "shop.yaml"))
+    data = {entity: list(simulation.records(entity)) for entity in simulation.entities}
+
+    price_of = {row["id"]: row["price"] for row in data["product"]}
+    tier_of = {row["id"]: row["tier"] for row in data["customer"]}
+    assert all(row["unit_price"] == price_of[row["product_id"]] for row in data["order_item"])
+    assert all(row["customer_tier"] == tier_of[row["customer_id"]] for row in data["order"])
+
+
+def test_example_shorthands_produce_nulls_and_integers():
+    simulation = dataspecter.generate(dataspecter.load_spec(EXAMPLES / "shop.yaml"))
+    codes = [row["referral_code"] for row in simulation.records("customer")]
+    levels = {row["gift_wrap_level"] for row in simulation.records("order_item")}
+
+    assert 0.4 < codes.count(None) / len(codes) < 0.6
+    assert levels == {0, 1, 2}

@@ -41,14 +41,34 @@ def stream(seed: int, entity: str, field: str, purpose: str = "") -> random.Rand
     return random.Random(int.from_bytes(hashlib.sha256(key.encode()).digest(), "big"))
 
 
+class RowPick:
+    """The row of a target entity chosen for the current row of a referencing entity.
+
+    One pick is shared by every reference on the same link, so their values come from the same
+    target row. Its stream is keyed by the target and link, not by any field, so adding or
+    removing a reference field never changes which rows are chosen.
+    """
+
+    def __init__(self, seed: int, entity: str, target: str, link: str | None, rows: int):
+        # "->" cannot occur in a field name, so this never collides with a field's stream.
+        self._rng = stream(seed, entity, f"->{target}", link or "")
+        self._rows = rows
+        self.index = 0
+
+    def advance(self) -> None:
+        """Choose the target row for the next row. Call once per generated row."""
+        self.index = self._rng.randrange(self._rows)
+
+
 def field_generator(
-    field: Field, seed: int, entity: str, name: str, referenced: Sequence[Any] | None = None
+    field: Field, seed: int, entity: str, name: str, read_reference: Generator | None = None
 ) -> Generator:
     """Return a function producing the next value of `field` on each call.
 
-    `referenced` holds the target field's generated values, and is required for a reference.
+    `read_reference` returns the target field's value in the currently picked row, and is
+    required for a reference.
     """
-    generate = _build(field, stream(seed, entity, name), referenced)
+    generate = _build(field, stream(seed, entity, name), read_reference)
     if field.null_probability <= 0:
         return generate
 
@@ -64,7 +84,7 @@ def field_generator(
     return generate_or_null
 
 
-def _build(field: Field, rng: random.Random, referenced: Sequence[Any] | None) -> Generator:
+def _build(field: Field, rng: random.Random, read_reference: Generator | None) -> Generator:
     match field:
         case IntegerField() | FloatField():
             return _numeric(field, rng)
@@ -87,9 +107,9 @@ def _build(field: Field, rng: random.Random, referenced: Sequence[Any] | None) -
             value = field.value
             return lambda: value
         case ReferenceField():
-            if referenced is None:
-                raise ValueError("a reference field needs the values of its target field")
-            return lambda: rng.choice(referenced)
+            if read_reference is None:
+                raise ValueError("a reference field needs a reader for its target field")
+            return read_reference
     raise TypeError(f"unsupported field: {field!r}")
 
 

@@ -16,3 +16,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - File export to CSV, JSON and JSON Lines, one file per entity.
 - `dataspecter` command with `generate` (`--out`, `--format`, `--seed`) and `validate`, also runnable as `python -m dataspecter`.
 - Python API: `load_spec`, `generate` and `write`, with `SpecError` and `ExportError`.
+- Reference shorthand: a field can be written as `$entity.field` instead of a `reference` mapping.
+- `link` on a `reference`, so that two references to the same entity can choose their rows independently.
+- Weighted value shorthand for `choice`: `value || weight` entries in `values`, with an empty value meaning null.
+- `value_type` (`string`, `integer`, `float`, `boolean`) to type the values written with inline weights.
+- Null entries in `choice` values, in the list form as well as the shorthand.
+- Weighted range shorthand: `min to max || weight` items in `ranges`.
+- The spec reference documents every long form next to its shorthand, and states how `null_probability` combines with a field's own values.
+
+### Changed
+
+- **BREAKING:** all references from one entity to the same target entity now read from the same target row, so several values can be copied from one parent (`product_id: $product.id` with `unit_price: $product.price`). Previously each reference chose its own row. For a given seed, reference fields produce different values than before; use different `link` names where independent rows are wanted.
