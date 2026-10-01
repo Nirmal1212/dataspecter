@@ -211,3 +211,156 @@ def test_adding_an_entity_leaves_existing_rows_unchanged():
 
     del after["product"]
     assert after == before
+
+
+# --- shared rows and links --------------------------------------------------------------------
+
+LINKED = {
+    "version": 1,
+    "entities": {
+        "order_item": {
+            "count": 400,
+            "fields": {
+                "id": {"type": "sequence"},
+                "product_id": "$product.id",
+                "unit_price": "$product.price",
+                "order_id": "$order.id",
+                "buyer": "$order.customer_name",
+            },
+        },
+        "order": {
+            "count": 150,
+            "fields": {
+                "id": {"type": "uuid"},
+                "customer_id": "$customer.id",
+                "customer_name": "$customer.name",
+            },
+        },
+        "product": {
+            "count": 30,
+            "fields": {
+                "id": {"type": "sequence"},
+                "price": {"type": "float", "min": 1, "max": 500, "precision": 2},
+            },
+        },
+        "customer": {
+            "count": 40,
+            "fields": {
+                "id": {"type": "sequence", "start": 1001},
+                "name": {"type": "uuid"},
+            },
+        },
+    },
+}
+
+
+def linked(**fields) -> dict:
+    raw = copy.deepcopy(LINKED)
+    raw["entities"]["order_item"]["fields"].update(fields)
+    return raw
+
+
+def test_values_are_copied_from_the_same_row():
+    data = run(LINKED)
+    price_of = {row["id"]: row["price"] for row in data["product"]}
+
+    assert all(row["unit_price"] == price_of[row["product_id"]] for row in data["order_item"])
+    assert len({row["product_id"] for row in data["order_item"]}) > 20
+
+
+def test_shared_row_through_a_chain():
+    data = run(LINKED)
+    name_of = {row["id"]: row["name"] for row in data["customer"]}
+    buyer_of = {row["id"]: name_of[row["customer_id"]] for row in data["order"]}
+
+    assert all(row["buyer"] == buyer_of[row["order_id"]] for row in data["order_item"])
+
+
+def account_reference(field: str, link: str) -> dict:
+    return {"type": "reference", "entity": "account", "field": field, "link": link}
+
+
+TRANSFER = {
+    "version": 1,
+    "entities": {
+        "account": {
+            "count": 100,
+            "fields": {"id": {"type": "sequence"}, "name": {"type": "uuid"}},
+        },
+        "depot": {"count": 100, "fields": {"code": {"type": "sequence"}}},
+        "transfer": {
+            "count": 1000,
+            "fields": {
+                "sender_id": account_reference("id", "a"),
+                "sender_name": account_reference("name", "a"),
+                "receiver_id": account_reference("id", "b"),
+                "owner_id": "$account.id",
+                "depot_code": {
+                    "type": "reference",
+                    "entity": "depot",
+                    "field": "code",
+                    "link": "a",
+                },
+            },
+        },
+    },
+}
+
+
+def differing(rows, first, second) -> float:
+    return sum(1 for row in rows if row[first] != row[second]) / len(rows)
+
+
+def test_same_link_agrees_and_different_links_choose_independently():
+    data = run(TRANSFER)
+    name_of = {row["id"]: row["name"] for row in data["account"]}
+    transfers = data["transfer"]
+
+    assert all(row["sender_name"] == name_of[row["sender_id"]] for row in transfers)
+    assert differing(transfers, "sender_id", "receiver_id") > 0.9
+
+
+def test_a_reference_without_a_link_is_independent_of_linked_ones():
+    transfers = run(TRANSFER)["transfer"]
+
+    assert differing(transfers, "owner_id", "sender_id") > 0.9
+    assert differing(transfers, "owner_id", "receiver_id") > 0.9
+
+
+def test_the_same_link_name_on_two_entities_gives_unrelated_picks():
+    transfers = run(TRANSFER)["transfer"]
+
+    # Both entities count 1..100, so equal values would mean the same row index was chosen.
+    assert differing(transfers, "sender_id", "depot_code") > 0.9
+
+
+def test_child_generated_alone_equals_the_full_pass_including_copied_references():
+    expected = run(LINKED)["order_item"]
+    simulation = Simulation(load_spec(copy.deepcopy(LINKED)), 42)
+
+    assert list(simulation.records("order_item")) == expected
+
+
+def test_adding_a_second_reference_to_the_same_entity_leaves_the_first_unchanged():
+    without = copy.deepcopy(LINKED)
+    del without["entities"]["order_item"]["fields"]["unit_price"]
+
+    before = [row["product_id"] for row in run(without)["order_item"]]
+    after = [row["product_id"] for row in run(LINKED)["order_item"]]
+    assert before == after
+
+
+def test_a_null_in_one_reference_leaves_the_other_intact():
+    price = {"type": "reference", "entity": "product", "field": "price", "null_probability": 0.5}
+    data = run(linked(unit_price=price))
+    price_of = {row["id"]: row["price"] for row in data["product"]}
+    items = data["order_item"]
+
+    assert all(row["product_id"] is not None for row in items)
+    nulls = sum(1 for row in items if row["unit_price"] is None)
+    assert 0.35 < nulls / len(items) < 0.65
+    assert all(
+        row["unit_price"] == price_of[row["product_id"]]
+        for row in items
+        if row["unit_price"] is not None
+    )

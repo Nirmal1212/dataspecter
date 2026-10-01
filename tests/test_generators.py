@@ -11,7 +11,7 @@ from statistics import fmean
 
 import pytest
 
-from dataspecter.generators import field_generator, stream
+from dataspecter.generators import RowPick, field_generator, stream
 from dataspecter.spec import load_spec
 
 from .helpers import spec_of
@@ -19,9 +19,9 @@ from .helpers import spec_of
 ROWS = 10_000
 
 
-def draw(field: dict, rows: int = ROWS, seed: int = 1, referenced=None) -> list:
+def draw(field: dict, rows: int = ROWS, seed: int = 1) -> list:
     model = load_spec(spec_of(field)).entities["thing"].fields["value"]
-    generate = field_generator(model, seed, "thing", "value", referenced)
+    generate = field_generator(model, seed, "thing", "value")
     return [generate() for _ in range(rows)]
 
 
@@ -221,24 +221,43 @@ def test_constant_value():
     assert set(draw({"type": "constant", "value": "EUR"}, rows=50)) == {"EUR"}
 
 
-def test_reference_draws_from_the_target_values():
-    field = {"type": "reference", "entity": "thing", "field": "value"}
-    model = (
-        load_spec(
-            {
-                "version": 1,
-                "entities": {
-                    "thing": {"count": 1, "fields": {"value": {"type": "sequence"}}},
-                    "other": {"count": 1, "fields": {"value": field}},
-                },
-            }
-        )
-        .entities["other"]
-        .fields["value"]
+def test_reference_reads_the_row_its_pick_chose():
+    spec = load_spec(
+        {
+            "version": 1,
+            "entities": {
+                "thing": {"count": 3, "fields": {"value": {"type": "sequence"}}},
+                "other": {"count": 1, "fields": {"value": "$thing.value"}},
+            },
+        }
     )
-    generate = field_generator(model, 1, "other", "value", referenced=[10, 20, 30])
+    column = [10, 20, 30]
+    pick = RowPick(1, "other", "thing", None, rows=3)
+    model = spec.entities["other"].fields["value"]
+    generate = field_generator(model, 1, "other", "value", lambda: column[pick.index])
 
-    assert {generate() for _ in range(200)} == {10, 20, 30}
+    seen = set()
+    for _ in range(200):
+        pick.advance()
+        value = generate()
+        assert value == column[pick.index]
+        seen.add(value)
+    assert seen == {10, 20, 30}
+
+
+def test_row_picks_differ_by_link_and_target():
+    def indexes(target, link):
+        pick = RowPick(1, "transfer", target, link, rows=1000)
+        chosen = []
+        for _ in range(20):
+            pick.advance()
+            chosen.append(pick.index)
+        return chosen
+
+    assert indexes("account", "sender") == indexes("account", "sender")
+    assert indexes("account", "sender") != indexes("account", "receiver")
+    assert indexes("account", "sender") != indexes("account", None)
+    assert indexes("account", "origin") != indexes("depot", "origin")
 
 
 # --- nulls ------------------------------------------------------------------------------------

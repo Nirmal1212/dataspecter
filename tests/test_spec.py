@@ -512,3 +512,28 @@ def test_shorthand_self_reference_and_cycle():
 
     cyclic = shop({"customer_id": "$customer.last_order"}, {"last_order": "$order.customer_id"})
     assert "circular reference between entities" in problem_text(cyclic)
+
+
+# --- links ------------------------------------------------------------------------------------
+
+
+def test_reference_link_is_optional_and_named():
+    raw = shop(
+        {
+            "customer_id": {"type": "reference", "entity": "customer", "field": "id"},
+            "payer_id": {"type": "reference", "entity": "customer", "field": "id", "link": "payer"},
+        }
+    )
+    fields = load_spec(raw).entities["order"].fields
+
+    assert fields["customer_id"].link is None
+    assert fields["payer_id"].link == "payer"
+
+
+@pytest.mark.parametrize("link", ["the sender", "", 7, "a-b"])
+def test_invalid_link_name(link):
+    field = {"type": "reference", "entity": "customer", "field": "id", "link": link}
+    [problem] = problems_of(shop({"customer_id": field}))
+
+    assert problem.path == "entities.order.fields.customer_id.link"
+    assert "letters, digits and underscores" in problem.message

@@ -8,10 +8,10 @@
 
 ## 2. Shared rows and links
 
-- [ ] 2.1 Add the optional `link` key to the `reference` mapping, validated as a name, and verify with tests for an accepted link, an invalid link name, and the default of no link
-- [ ] 2.2 Replace per-field row choice with one pick per `(entity, target entity, link)` drawing from its own stream, in `generators.py` and `engine.py`; verify with tests that `unit_price` equals the price of the product named by `product_id` in every row, that references sharing a link agree, that references with different links differ in most rows, that the same link name on two target entities gives unrelated picks, and that a reference without a link is independent of linked references to the same entity
-- [ ] 2.3 Verify the column-only path with tests that a child entity generated without iterating its parents equals the same entity from a full pass, including a reference to a field that is itself a reference
-- [ ] 2.4 Verify stability and null handling with tests that adding a second reference to the same entity leaves the first unchanged for the same seed, and that `null_probability` on one reference leaves the other intact and correct
+- [x] 2.1 Add the optional `link` key to the `reference` mapping, validated as a name, and verify with tests for an accepted link, an invalid link name, and the default of no link
+- [x] 2.2 Replace per-field row choice with one pick per `(entity, target entity, link)` drawing from its own stream, in `generators.py` and `engine.py`; verify with tests that `unit_price` equals the price of the product named by `product_id` in every row, that references sharing a link agree, that references with different links differ in most rows, that the same link name on two target entities gives unrelated picks, and that a reference without a link is independent of linked references to the same entity
+- [x] 2.3 Verify the column-only path with tests that a child entity generated without iterating its parents equals the same entity from a full pass, including a reference to a field that is itself a reference
+- [x] 2.4 Verify stability and null handling with tests that adding a second reference to the same entity leaves the first unchanged for the same seed, and that `null_probability` on one reference leaves the other intact and correct
 - [ ] 2.5 Rewrite the References section of `docs/spec-reference.md` (shared row, `link`, per-field nulls), replace the "pick their rows independently" entry in Current limits with a note that independent links can land on the same row, and verify with a test that the sender and receiver snippet loads and behaves as described
 
 ## 3. Weighted choice values

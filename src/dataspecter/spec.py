@@ -116,6 +116,7 @@ class ReferenceField(_Field):
     type: ClassVar[str] = "reference"
     entity: str
     field: str
+    link: str | None = None
 
 
 Field = (
@@ -577,9 +578,10 @@ def _reference(raw, path, problems, common):
     _require(raw, ("entity", "field"), path, problems)
     entity = _read(raw, "entity", lambda v: isinstance(v, str), "an entity name", path, problems)
     field = _read(raw, "field", lambda v: isinstance(v, str), "a field name", path, problems)
-    if not _usable(entity, field):
+    link = _read(raw, "link", _is_name, f"a link name ({_NAME_RULE})", path, problems)
+    if not _usable(entity, field) or link is _BAD:
         return None
-    return ReferenceField(entity=entity, field=field, **common)
+    return ReferenceField(entity=entity, field=field, link=link, **common)
 
 
 _COMMON_KEYS = frozenset({"type", "null_probability"})
@@ -596,7 +598,7 @@ _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
     "sequence": (frozenset({"start", "step"}), _sequence),
     "uuid": (frozenset(), _uuid),
     "constant": (frozenset({"value"}), _constant),
-    "reference": (frozenset({"entity", "field"}), _reference),
+    "reference": (frozenset({"entity", "field", "link"}), _reference),
 }
 
 
