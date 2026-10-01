@@ -17,10 +17,10 @@
 
 ## 3. Value generators
 
-- [ ] 3.1 Implement per-field random streams seeded from a SHA-256 digest of seed, entity and field, with a separate stream for null decisions; verify with a test that the same inputs give the same sequence and that different field names give different sequences
-- [ ] 3.2 Implement the numeric generators (uniform, normal with resampling then clamping, weighted ranges, float precision, integer rounding) and verify with fixed-seed tests for bounds, the mean of a normal field, and range proportions within the tolerances in the `data-generation` spec
-- [ ] 3.3 Implement the `boolean`, `choice`, `date`, `datetime`, `sequence`, `uuid` and `constant` generators and verify each against its scenarios, including weighted choice proportions and 10,000 unique valid UUIDs
-- [ ] 3.4 Apply `null_probability` uniformly across field types and verify with tests for probability 0, probability 1 and a 10% proportion
+- [x] 3.1 Implement per-field random streams seeded from a SHA-256 digest of seed, entity and field, with a separate stream for null decisions; verify with a test that the same inputs give the same sequence and that different field names give different sequences
+- [x] 3.2 Implement the numeric generators (uniform, normal with resampling then clamping, weighted ranges, float precision, integer rounding) and verify with fixed-seed tests for bounds, the mean of a normal field, and range proportions within the tolerances in the `data-generation` spec
+- [x] 3.3 Implement the `boolean`, `choice`, `date`, `datetime`, `sequence`, `uuid` and `constant` generators and verify each against its scenarios, including weighted choice proportions and 10,000 unique valid UUIDs
+- [x] 3.4 Apply `null_probability` uniformly across field types and verify with tests for probability 0, probability 1 and a 10% proportion
 
 ## 4. Generation engine
 
