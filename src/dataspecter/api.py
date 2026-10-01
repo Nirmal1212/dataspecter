@@ -32,8 +32,9 @@ class WriteResult:
 def generate(spec: Spec, seed: int | None = None) -> Simulation:
     """Start a run of `spec`.
 
-    The returned simulation exposes the `seed` it uses, the `entities` in generation order, and
-    ``records(entity)`` to iterate over an entity's rows. An explicit `seed` takes precedence
+    The returned simulation exposes the `seed` it uses, the `entities` in generation order,
+    ``records(entity)`` to iterate over an entity's rows, and ``columns(entity)`` for the paths
+    of its single-valued fields. An explicit `seed` takes precedence
     over the spec's; with neither, one is chosen and can be read back from the simulation.
     """
     return Simulation(spec, seed)
@@ -54,10 +55,12 @@ def write(
     fmt = check_format(format or spec.output.format or DEFAULT_FORMAT)
     simulation = generate(spec, seed)
     directory = prepare_directory(out_dir or spec.output.dir or DEFAULT_DIR)
+    separator = spec.output.csv_separator or "."
 
     results = []
     for name in simulation.entities:
-        fields = list(spec.entities[name].fields)
-        path, rows = export(directory, name, fmt, fields, simulation.records(name))
+        path, rows = export(
+            directory, name, fmt, simulation.columns(name), simulation.records(name), separator
+        )
         results.append(EntityResult(name, rows, path))
     return WriteResult(simulation.seed, fmt, directory, tuple(results))

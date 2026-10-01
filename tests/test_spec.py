@@ -466,7 +466,7 @@ def test_reference_shorthand_equals_the_mapping_form():
 
 
 @pytest.mark.parametrize(
-    "text", ["$customer", "$customer.id.extra", "customer.id", "$ customer.id"]
+    "text", ["$customer", "$customer.", "$customer..id", "customer.id", "$ customer.id"]
 )
 def test_malformed_reference_shorthand(text):
     [problem] = problems_of(shop({"customer_id": text}))

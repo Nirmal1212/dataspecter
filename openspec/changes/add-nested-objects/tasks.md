@@ -8,30 +8,30 @@
 
 ## 2. Object model and validation
 
-- [ ] 2.1 Add `ObjectField` to `spec.py` with recursive field parsing and path-based problem locations, and verify with tests for an object with sub-fields, an object inside an object, an object without fields, the same field name at two levels, and a problem located at `entities.customer.fields.address.fields.postcode`
-- [ ] 2.2 Enforce the ten-level nesting limit with a depth counter, and verify with tests for ten levels accepted, eleven rejected with the path and the limit, and a YAML document whose `fields` mapping contains itself rejected with the same error and no other exception
-- [ ] 2.3 Add field shapes resolved in entity dependency order, with a helper returning an entity's leaf paths, and verify with tests for a flat entity, a nested entity, a two-level nesting and a reference to an object taking the target's shape
+- [x] 2.1 Add `ObjectField` to `spec.py` with recursive field parsing and path-based problem locations, and verify with tests for an object with sub-fields, an object inside an object, an object without fields, the same field name at two levels, and a problem located at `entities.customer.fields.address.fields.postcode`
+- [x] 2.2 Enforce the ten-level nesting limit with a depth counter, and verify with tests for ten levels accepted, eleven rejected with the path and the limit, and a YAML document whose `fields` mapping contains itself rejected with the same error and no other exception
+- [x] 2.3 Add field shapes resolved in entity dependency order, with a helper returning an entity's leaf paths, and verify with tests for a flat entity, a nested entity, a two-level nesting and a reference to an object taking the target's shape
 - [ ] 2.4 Document the `object` type and the nesting limit in `docs/spec-reference.md` and verify with the docs test that the snippet loads
 
 ## 3. Generation
 
-- [ ] 3.1 Key random streams and generators by path and generate objects as nested dicts, skipping the children of a null object, with a fast path for flat entities; verify with tests for nested records in declared order, a null object, nulls inside an object, and the golden test still passing
-- [ ] 3.2 Verify stability with tests that adding, removing and reordering fields inside an object leaves the other nested values unchanged for the same seed, and that a flat spec is unaffected by an unrelated nested entity
+- [x] 3.1 Key random streams and generators by path and generate objects as nested dicts, skipping the children of a null object, with a fast path for flat entities; verify with tests for nested records in declared order, a null object, nulls inside an object, and the golden test still passing
+- [x] 3.2 Verify stability with tests that adding, removing and reordering fields inside an object leaves the other nested values unchanged for the same seed, and that a flat spec is unaffected by an unrelated nested entity
 
 ## 4. Export and Python API
 
-- [ ] 4.1 Pass leaf paths to the CSV writer and read each leaf by walking the record, writing empty cells for a null object; verify with tests for the header `id,address.city,address.postcode,tier`, two-level paths, a null object written as `1,,,free`, and the golden test still passing
-- [ ] 4.2 Add `output.csv_separator` (`.` or `__`) with collision detection at validation, and verify with tests for the default, `address__city`, an unsupported separator, a collision naming both fields, and JSON output unaffected by the separator
-- [ ] 4.3 Verify JSON and JSON Lines with tests that an object is written nested and a null object as `null`
-- [ ] 4.4 Expose an entity's column paths on the simulation and verify with tests for a nested and a flat entity, and that the Python API yields nested dicts with `None` for a null object
+- [x] 4.1 Pass leaf paths to the CSV writer and read each leaf by walking the record, writing empty cells for a null object; verify with tests for the header `id,address.city,address.postcode,tier`, two-level paths, a null object written as `1,,,free`, and the golden test still passing
+- [x] 4.2 Add `output.csv_separator` (`.` or `__`) with collision detection at validation, and verify with tests for the default, `address__city`, an unsupported separator, a collision naming both fields, and JSON output unaffected by the separator
+- [x] 4.3 Verify JSON and JSON Lines with tests that an object is written nested and a null object as `null`
+- [x] 4.4 Expose an entity's column paths on the simulation and verify with tests for a nested and a flat entity, and that the Python API yields nested dicts with `None` for a null object
 - [ ] 4.5 Update the Output section of `docs/spec-reference.md` with nested output in each format, the separator option and the null-object limitation of CSV, and verify the documented header against a generated file in a test
 
 ## 5. References to nested fields
 
-- [ ] 5.1 Accept dotted paths in the reference shorthand and in the long form's `field`, validated against the target's shape; verify with tests for `$customer.address.city`, the long form, an unknown nested field, a path through a non-object, a path through a copied object in each declaration order, and `$customer.`, `$customer..id` rejected
-- [ ] 5.2 Collect references declared inside objects for entity ordering, cycle detection and row picks, and verify with tests that a nested reference orders the entities correctly, takes part in cycle detection, and shares a row with the entity's other references to the same target
-- [ ] 5.3 Retain columns by path and read nested values from the chosen row, copying objects per record; verify with tests that `ship_city` is the city of the customer in `customer_id`, that a whole object is copied and equals the target's, that a null target address gives null, that reading through a copied object works, and that mutating one record's copied object leaves other records unchanged
-- [ ] 5.4 Verify export of copied objects with a test for the CSV columns `ship_to.city` and `ship_to.postcode`
+- [x] 5.1 Accept dotted paths in the reference shorthand and in the long form's `field`, validated against the target's shape; verify with tests for `$customer.address.city`, the long form, an unknown nested field, a path through a non-object, a path through a copied object in each declaration order, and `$customer.`, `$customer..id` rejected
+- [x] 5.2 Collect references declared inside objects for entity ordering, cycle detection and row picks, and verify with tests that a nested reference orders the entities correctly, takes part in cycle detection, and shares a row with the entity's other references to the same target
+- [x] 5.3 Retain columns by path and read nested values from the chosen row, copying objects per record; verify with tests that `ship_city` is the city of the customer in `customer_id`, that a whole object is copied and equals the target's, that a null target address gives null, that reading through a copied object works, and that mutating one record's copied object leaves other records unchanged
+- [x] 5.4 Verify export of copied objects with a test for the CSV columns `ship_to.city` and `ship_to.postcode`
 - [ ] 5.5 Document nested references in the References section of `docs/spec-reference.md` and verify with the docs test that the snippet loads and behaves as described
 
 ## 6. Examples

@@ -6,8 +6,9 @@ import json
 import math
 import os
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import date, datetime
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from pathlib import Path
@@ -19,6 +20,8 @@ from dataspecter.errors import Problem, SpecError
 
 SUPPORTED_VERSION = 1
 FORMATS = ("csv", "json", "jsonl")
+CSV_SEPARATORS = (".", "__")
+MAX_DEPTH = 10  # levels of object nesting below an entity
 
 _EXTENSIONS = (".yaml", ".yml", ".json")
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -35,7 +38,10 @@ _RANGE = re.compile(
     rf"\s*({_NUMBER_PATTERN})\s+to\s+({_NUMBER_PATTERN})\s*\|\|\s*({_NUMBER_PATTERN})\s*"
 )
 _RANGE_FORM = "'min to max || weight', for example '18 to 35 || 0.7'"
-_REFERENCE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)")
+_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_]*"
+_PATH_PATTERN = rf"{_NAME_PATTERN}(?:\.{_NAME_PATTERN})*"
+_PATH = re.compile(_PATH_PATTERN)
+_REFERENCE = re.compile(rf"\$({_NAME_PATTERN})\.({_PATH_PATTERN})")
 _BAD = object()  # a key that was present but invalid, and has already been reported
 
 
@@ -128,6 +134,12 @@ class ReferenceField(_Field):
     link: str | None = None
 
 
+@dataclass(frozen=True, kw_only=True)
+class ObjectField(_Field):
+    type: ClassVar[str] = "object"
+    fields: Mapping[str, Any]
+
+
 Field = (
     IntegerField
     | FloatField
@@ -139,6 +151,7 @@ Field = (
     | UuidField
     | ConstantField
     | ReferenceField
+    | ObjectField
 )
 
 
@@ -153,6 +166,7 @@ class Entity:
 class Output:
     format: str | None = None
     dir: str | None = None
+    csv_separator: str | None = None
 
 
 @dataclass(frozen=True)
@@ -675,14 +689,49 @@ def _constant(raw, path, problems, common):
     return ConstantField(value=value, **common)
 
 
+def _is_path(value: Any) -> bool:
+    return isinstance(value, str) and _PATH.fullmatch(value) is not None
+
+
 def _reference(raw, path, problems, common):
     _require(raw, ("entity", "field"), path, problems)
     entity = _read(raw, "entity", lambda v: isinstance(v, str), "an entity name", path, problems)
-    field = _read(raw, "field", lambda v: isinstance(v, str), "a field name", path, problems)
+    field = _read(
+        raw,
+        "field",
+        _is_path,
+        "a field name, or a dotted path such as address.city",
+        path,
+        problems,
+    )
     link = _read(raw, "link", _is_name, f"a link name ({_NAME_RULE})", path, problems)
     if not _usable(entity, field) or link is _BAD:
         return None
     return ReferenceField(entity=entity, field=field, link=link, **common)
+
+
+@dataclass
+class _Context:
+    """What the field parsers need to know about where they are."""
+
+    entity: Any
+    # Every reference found, as (entity, problem path, field), for the cross-entity pass.
+    references: list[tuple[Any, str, ReferenceField]] = dataclass_field(default_factory=list)
+
+
+def _object(raw, path, problems, common, ctx: _Context, depth: int):
+    # The depth check also ends a document that contains itself through a YAML anchor, so no
+    # input can recurse without bound.
+    if depth + 1 > MAX_DEPTH:
+        problems.append(Problem(path, f"objects are nested more than {MAX_DEPTH} levels deep"))
+        return None
+    if "fields" not in raw:
+        problems.append(Problem(path, "an object needs 'fields' with at least one field"))
+        return None
+    fields = _parse_fields(raw["fields"], _at(path, "fields"), problems, ctx, depth + 1)
+    if fields is None or any(field is None for field in fields.values()):
+        return None
+    return ObjectField(fields=fields, **common)
 
 
 _COMMON_KEYS = frozenset({"type", "null_probability"})
@@ -700,10 +749,14 @@ _FIELD_TYPES: dict[str, tuple[frozenset[str], Callable[..., Any]]] = {
     "uuid": (frozenset(), _uuid),
     "constant": (frozenset({"value"}), _constant),
     "reference": (frozenset({"entity", "field", "link"}), _reference),
+    "object": (frozenset({"fields"}), _object),
 }
 
 
-def _parse_field(raw: Any, path: str, problems: list[Problem]) -> Field | None:
+def _parse_field(
+    raw: Any, path: str, problems: list[Problem], ctx: _Context, depth: int
+) -> Field | None:
+    """Parse one field definition. `depth` is the number of objects it is nested inside."""
     start = len(problems)
     supported = f"supported types: {', '.join(_FIELD_TYPES)}"
     if isinstance(raw, str):
@@ -712,7 +765,9 @@ def _parse_field(raw: Any, path: str, problems: list[Problem]) -> Field | None:
             message = f"{raw!r} is not a field definition; a reference is written '$entity.field'"
             problems.append(Problem(path, message))
             return None
-        return ReferenceField(entity=parts[0], field=parts[1])
+        field = ReferenceField(entity=parts[0], field=parts[1])
+        ctx.references.append((ctx.entity, path, field))
+        return field
     if not isinstance(raw, Mapping):
         message = (
             f"a field must be a mapping with a 'type' or a '$entity.field' reference; {supported}"
@@ -741,55 +796,71 @@ def _parse_field(raw: Any, path: str, problems: list[Problem]) -> Field | None:
         default=0.0,
     )
     common = {"null_probability": 0.0 if null_probability is _BAD else null_probability}
-    field = parser(raw, path, problems, common)
+    if parser is _object:
+        field = _object(raw, path, problems, common, ctx, depth)
+    else:
+        field = parser(raw, path, problems, common)
+    if isinstance(field, ReferenceField):
+        ctx.references.append((ctx.entity, path, field))
     return field if len(problems) == start else None
+
+
+def _parse_fields(
+    raw: Any, path: str, problems: list[Problem], ctx: _Context, depth: int
+) -> dict[Any, Field | None] | None:
+    """Parse the `fields` mapping of an entity or object.
+
+    A field that fails to parse is kept as None, so that later checks can tell "this name is
+    declared but broken" from "no such field".
+    """
+    if not isinstance(raw, Mapping):
+        problems.append(Problem(path, "must be a mapping of field name to definition"))
+        return None
+    if not raw:
+        problems.append(Problem(path, "at least one field is required"))
+        return None
+    fields: dict[Any, Field | None] = {}
+    for name, raw_field in raw.items():
+        field_path = _at(path, name)
+        if not _is_name(name):
+            problems.append(Problem(field_path, f"invalid field name {name!r}; {_NAME_RULE}"))
+        fields[name] = _parse_field(raw_field, field_path, problems, ctx, depth)
+    return fields
 
 
 # --- document parsers -------------------------------------------------------------------------
 
 
-def _parse_entity(name: Any, raw: Any, path: str, problems: list[Problem]) -> Entity | None:
+def _parse_entity(
+    name: Any, raw: Any, path: str, problems: list[Problem], ctx: _Context
+) -> tuple[Entity | None, dict[Any, Field | None] | None]:
+    """Return the entity, or None if it has problems, and its fields as far as they parsed."""
     start = len(problems)
     if not _is_name(name):
         problems.append(Problem(path, f"invalid entity name {name!r}; {_NAME_RULE}"))
     if not isinstance(raw, Mapping):
         problems.append(Problem(path, "must be a mapping with 'count' and 'fields'"))
-        return None
+        return None, None
     _unknown_keys(raw, frozenset({"count", "fields"}), path, problems)
     _require(raw, ("count", "fields"), path, problems)
     count = _read(
         raw, "count", lambda v: _is_int(v) and v >= 1, "an integer of 1 or more", path, problems
     )
-
-    fields: dict[str, Field] = {}
-    raw_fields = raw.get("fields")
+    fields = None
     if "fields" in raw:
-        fields_path = _at(path, "fields")
-        if not isinstance(raw_fields, Mapping):
-            problems.append(Problem(fields_path, "must be a mapping of field name to definition"))
-        elif not raw_fields:
-            problems.append(Problem(fields_path, "at least one field is required"))
-        else:
-            for field_name, raw_field in raw_fields.items():
-                field_path = _at(fields_path, field_name)
-                if not _is_name(field_name):
-                    message = f"invalid field name {field_name!r}; {_NAME_RULE}"
-                    problems.append(Problem(field_path, message))
-                field = _parse_field(raw_field, field_path, problems)
-                if field is not None:
-                    fields[field_name] = field
+        fields = _parse_fields(raw["fields"], _at(path, "fields"), problems, ctx, depth=0)
 
     if len(problems) > start:
-        return None
-    return Entity(name=name, count=count, fields=fields)
+        return None, fields
+    return Entity(name=name, count=count, fields=fields), fields
 
 
 def _parse_output(raw: Any, problems: list[Problem]) -> Output:
     path = "output"
     if not isinstance(raw, Mapping):
-        problems.append(Problem(path, "must be a mapping with 'format' and/or 'dir'"))
+        problems.append(Problem(path, "must be a mapping with 'format', 'dir' or 'csv_separator'"))
         return Output()
-    _unknown_keys(raw, frozenset({"format", "dir"}), path, problems)
+    _unknown_keys(raw, frozenset({"format", "dir", "csv_separator"}), path, problems)
     output_format = raw.get("format")
     if "format" in raw and output_format not in FORMATS:
         message = f"unsupported format {output_format!r}; supported formats: {', '.join(FORMATS)}"
@@ -802,7 +873,16 @@ def _parse_output(raw: Any, problems: list[Problem]) -> Output:
         path,
         problems,
     )
-    return Output(format=output_format, dir=None if directory is _BAD else directory)
+    separator = raw.get("csv_separator")
+    if "csv_separator" in raw and separator not in CSV_SEPARATORS:
+        supported = " or ".join(repr(item) for item in CSV_SEPARATORS)
+        message = f"unsupported separator {separator!r}; supported separators: {supported}"
+        problems.append(Problem(_at(path, "csv_separator"), message))
+    return Output(
+        format=output_format,
+        dir=None if directory is _BAD else directory,
+        csv_separator=separator,
+    )
 
 
 def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
@@ -831,76 +911,97 @@ def _parse_spec(raw: Any, problems: list[Problem]) -> Spec | None:
     elif not raw_entities:
         problems.append(Problem("entities", "at least one entity is required"))
     else:
+        drafts: dict[Any, dict[Any, Field | None] | None] = {}
+        references: list[tuple[Any, str, ReferenceField]] = []
         for name, raw_entity in raw_entities.items():
-            entity = _parse_entity(name, raw_entity, _at("entities", name), problems)
+            ctx = _Context(entity=name, references=references)
+            entity, drafts[name] = _parse_entity(
+                name, raw_entity, _at("entities", name), problems, ctx
+            )
             if entity is not None:
                 entities[name] = entity
-        _check_references(raw_entities, problems)
+        _check_references(references, drafts, problems)
 
     if problems:
         return None
-    return Spec(version=SUPPORTED_VERSION, entities=entities, seed=seed, output=output)
+    spec = Spec(version=SUPPORTED_VERSION, entities=entities, seed=seed, output=output)
+    _check_columns(spec, problems)
+    return None if problems else spec
 
 
 # --- rules that span entities -----------------------------------------------------------------
 
 
-def _check_references(raw_entities: Mapping[Any, Any], problems: list[Problem]) -> None:
+def _check_references(
+    references: list[tuple[Any, str, ReferenceField]],
+    drafts: Mapping[Any, dict[Any, Field | None] | None],
+    problems: list[Problem],
+) -> None:
     """Check every reference's target exists and that references do not form a cycle.
 
-    Works from the raw mapping rather than the parsed entities, so one unrelated problem in an
-    entity does not hide a bad reference elsewhere.
+    Works on fields as far as they parsed, so one unrelated problem in an entity does not hide
+    a bad reference elsewhere.
     """
-    declared: dict[Any, set[Any] | None] = {}
-    for name, raw_entity in raw_entities.items():
-        raw_fields = raw_entity.get("fields") if isinstance(raw_entity, Mapping) else None
-        declared[name] = set(raw_fields) if isinstance(raw_fields, Mapping) else None
-
-    edges: dict[str, list[str]] = {}
-    for name, raw_entity in raw_entities.items():
-        if declared[name] is None:
-            continue
-        for field_name, raw_field in raw_entity["fields"].items():
-            reference = _raw_reference(raw_field)
-            if reference is None:
-                continue
-            target, target_field = reference
-            path = _at(_at(_at("entities", name), "fields"), field_name)
-            if target == name:
-                problems.append(Problem(path, "an entity cannot reference itself"))
-            elif target not in declared:
-                known = ", ".join(str(entity) for entity in declared)
-                message = f"unknown entity {target!r}; entities in this spec: {known}"
-                problems.append(Problem(path, message))
-            else:
-                target_fields = declared[target]
-                if target_fields is not None and target_field not in target_fields:
-                    message = f"entity {target!r} has no field {target_field!r}"
-                    problems.append(Problem(path, message))
-                edges.setdefault(name, []).append(target)
+    edges: dict[Any, list[Any]] = {}
+    for entity, path, field in references:
+        if field.entity == entity:
+            problems.append(Problem(path, "an entity cannot reference itself"))
+        elif field.entity not in drafts:
+            known = ", ".join(str(name) for name in drafts)
+            message = f"unknown entity {field.entity!r}; entities in this spec: {known}"
+            problems.append(Problem(path, message))
+        else:
+            edges.setdefault(entity, []).append(field.entity)
+            _, error = _lookup(drafts, field.entity, field.field, visiting=set())
+            if error:
+                problems.append(Problem(path, error))
 
     cycle = _find_cycle(edges)
     if cycle:
-        message = f"circular reference between entities: {' -> '.join(cycle)}"
+        message = f"circular reference between entities: {' -> '.join(map(str, cycle))}"
         problems.append(Problem("entities", message))
 
 
-def _raw_reference(raw_field: Any) -> tuple[str, str] | None:
-    """Return the (entity, field) a raw field definition refers to, in either form, if any."""
-    if isinstance(raw_field, str):
-        return _reference_parts(raw_field)
-    if isinstance(raw_field, Mapping) and raw_field.get("type") == "reference":
-        target, target_field = raw_field.get("entity"), raw_field.get("field")
-        if isinstance(target, str) and isinstance(target_field, str):
-            return target, target_field
-    return None  # not a reference, or malformed and already reported by the field parser
+def _lookup(
+    drafts: Mapping[Any, dict[Any, Field | None] | None],
+    entity: Any,
+    path: str,
+    visiting: set[tuple[Any, str]],
+) -> tuple[Field | None, str | None]:
+    """Find the field at `path` in `entity`, passing through references to objects.
+
+    Returns the field and no error; or None and an error message; or None and no message when
+    the answer is unknown because of a problem that is reported elsewhere.
+    """
+    if (entity, path) in visiting:  # a cycle, reported once by the caller
+        return None, None
+    visiting = visiting | {(entity, path)}
+    fields = drafts.get(entity)
+    walked = str(entity)
+    field: Field | None = None
+    for index, segment in enumerate(path.split(".")):
+        if fields is None:
+            return None, None
+        if segment not in fields:
+            if index == 0:
+                return None, f"entity {entity!r} has no field {segment!r}"
+            return None, f"'{walked}' has no field {segment!r}"
+        field = fields[segment]
+        walked = f"{walked}.{segment}"
+        target = field
+        while isinstance(target, ReferenceField):
+            target, _ = _lookup(drafts, target.entity, target.field, visiting)
+        if target is None:
+            return None, None
+        fields = target.fields if isinstance(target, ObjectField) else {}
+    return field, None
 
 
-def _find_cycle(edges: Mapping[str, list[str]]) -> list[str] | None:
+def _find_cycle(edges: Mapping[Any, list[Any]]) -> list[Any] | None:
     """Return the entities along one cycle (first repeated at the end), or None."""
-    done: set[str] = set()
+    done: set[Any] = set()
 
-    def visit(node: str, trail: list[str]) -> list[str] | None:
+    def visit(node: Any, trail: list[Any]) -> list[Any] | None:
         if node in trail:
             return trail[trail.index(node) :] + [node]
         if node in done:
@@ -919,3 +1020,69 @@ def _find_cycle(edges: Mapping[str, list[str]]) -> list[str] | None:
         if cycle:
             return cycle
     return None
+
+
+def _check_columns(spec: Spec, problems: list[Problem]) -> None:
+    """Reject a spec in which two fields of an entity would share a CSV column name."""
+    separator = spec.output.csv_separator or "."
+    if separator == ".":
+        return  # names cannot contain dots, so path-named columns cannot collide
+    for name in spec.entities:
+        seen: dict[str, str] = {}
+        for path in leaf_paths(spec, name):
+            column = path.replace(".", separator)
+            if column in seen:
+                message = (
+                    f"fields {seen[column]!r} and {path!r} would both be written to the CSV "
+                    f"column {column!r}; rename one, or use the default separator '.'"
+                )
+                problems.append(Problem(_at("entities", name), message))
+            seen[column] = path
+
+
+# --- reading the structure of a validated spec ------------------------------------------------
+
+
+def iter_fields(fields: Mapping[str, Field], prefix: str = "") -> Iterator[tuple[str, Field]]:
+    """Yield every field under `fields` with its path, objects before the fields inside them."""
+    for name, field in fields.items():
+        path = f"{prefix}{name}"
+        yield path, field
+        if isinstance(field, ObjectField):
+            yield from iter_fields(field.fields, f"{path}.")
+
+
+def follow(spec: Spec, field: Field) -> Field:
+    """Return the field a reference ultimately copies; any other field is returned unchanged."""
+    while isinstance(field, ReferenceField):
+        field = field_at(spec, field.entity, field.field)
+    return field
+
+
+def field_at(spec: Spec, entity: str, path: str) -> Field:
+    """Return the field at `path` in `entity`, passing through references to objects."""
+    fields: Mapping[str, Field] = spec.entities[entity].fields
+    field: Field | None = None
+    for segment in path.split("."):
+        field = fields[segment]
+        target = follow(spec, field)
+        fields = target.fields if isinstance(target, ObjectField) else {}
+    return field
+
+
+def leaf_paths(spec: Spec, entity: str) -> tuple[str, ...]:
+    """Return the paths of an entity's fields that hold a single value, in declared order.
+
+    These are the columns CSV export writes. An object contributes one path per field inside
+    it, and so does a reference that copies an object.
+    """
+
+    def walk(fields: Mapping[str, Field], prefix: str) -> Iterator[str]:
+        for name, field in fields.items():
+            target = follow(spec, field)
+            if isinstance(target, ObjectField):
+                yield from walk(target.fields, f"{prefix}{name}.")
+            else:
+                yield f"{prefix}{name}"
+
+    return tuple(walk(spec.entities[entity].fields, ""))
