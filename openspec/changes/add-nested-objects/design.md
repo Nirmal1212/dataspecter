@@ -99,6 +99,10 @@ Run with `benchmarks/bench.py`, best of three, Python 3.12 on the development la
 | When | Scenario | Rows | Throughput | Peak traced memory |
 |---|---|---|---|---|
 | Baseline, before any engine change | flat | 1,000,000 | 121,191 rows/s | 0.22 MB (same at 200,000 rows) |
+| After this change | flat | 1,000,000 | 120,011 rows/s (1% below baseline) | not re-measured; same code path |
+| After this change | nested | 1,000,000 | 75,352 rows/s | 0.49 MB (same at 200,000 rows) |
+
+The flat figure is within the 15% allowed. The nested scenario writes eleven columns per row from two objects, a copied object and a nested reference; its memory does not grow with the row count.
 
 ## Migration Plan
 

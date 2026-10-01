@@ -32,6 +32,43 @@ SCENARIOS = {
         "kind": {"type": "choice", "values": ["view", "click", "buy"], "weights": [80, 15, 5]},
         "at": {"type": "datetime", "min": "2025-01-01T00:00:00", "max": "2025-12-31T23:59:59"},
     },
+    # An object, an object inside it, and references that copy an object and read a nested path.
+    "nested": {
+        "entities": {
+            "customer": {
+                "count": 1000,
+                "fields": {
+                    "id": {"type": "sequence"},
+                    "address": {
+                        "type": "object",
+                        "fields": {
+                            "city": {"type": "choice", "values": ["Pune", "Austin", "Leeds"]},
+                            "postcode": {"type": "integer", "min": 10000, "max": 99999},
+                        },
+                    },
+                },
+            }
+        },
+        "fields": {
+            "id": {"type": "sequence"},
+            "customer_id": "$customer.id",
+            "ship_city": "$customer.address.city",
+            "ship_to": "$customer.address",
+            "home": {
+                "type": "object",
+                "fields": {
+                    "amount": {"type": "float", "min": 0, "max": 500, "precision": 2},
+                    "geo": {
+                        "type": "object",
+                        "fields": {
+                            "lat": {"type": "float", "min": -90, "max": 90},
+                            "lon": {"type": "float", "min": -180, "max": 180},
+                        },
+                    },
+                },
+            },
+        },
+    },
 }
 
 

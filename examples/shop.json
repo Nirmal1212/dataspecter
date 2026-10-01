@@ -19,6 +19,14 @@
         "referral_code": {
           "type": "choice",
           "values": ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"]
+        },
+        "address": {
+          "type": "object",
+          "null_probability": 0.1,
+          "fields": {
+            "city": { "type": "choice", "values": ["Pune", "Austin", "Leeds", "Kochi", "Denver"] },
+            "postcode": { "type": "integer", "min": 10000, "max": 99999 }
+          }
         }
       }
     },
@@ -46,6 +54,7 @@
         "id": { "type": "uuid" },
         "customer_id": "$customer.id",
         "customer_tier": "$customer.tier",
+        "ship_city": "$customer.address.city",
         "status": {
           "type": "choice",
           "values": ["delivered || 0.75", "shipped || 0.12", "pending || 0.08", "cancelled || 0.05"]

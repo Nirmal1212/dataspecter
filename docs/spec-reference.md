@@ -24,6 +24,7 @@ seed: 42            # optional, non-negative integer
 output:             # optional
   format: csv       # csv, json or jsonl
   dir: output/shop  # relative paths resolve against the current working directory
+  csv_separator: .  # . or __ ; joins the parts of a nested column name in CSV
 entities:           # required, at least one
   customer:
     count: 1000
@@ -54,7 +55,7 @@ A field definition is either a mapping with a `type`, or a `$entity.field` refer
 | Typed weighted choice | `values: [0, 1, 2]` with `weights: [80, 15, 5]` | `value_type: integer` with `values: [0 \|\| 80, 1 \|\| 15, 2 \|\| 5]` |
 | Weighted range | `{min: 18, max: 35, weight: 0.7}` | `18 to 35 \|\| 0.7` |
 
-Everything else (`min` and `max`, distributions, dates, sequences, constants, `null_probability`, `link`) has only the long form.
+Everything else (`min` and `max`, distributions, dates, sequences, constants, objects, `null_probability`, `link`) has only the long form.
 
 ## Field types
 
@@ -249,6 +250,32 @@ currency: {type: constant, value: EUR}
 
 The same `value` (a string, number, boolean or null) in every row. A value starting with `$`, such as `"$5.00"`, is plain text here.
 
+### `object`
+
+Groups fields into a nested record. An object has its own `fields`, written exactly like an entity's, and objects can contain objects.
+
+```yaml
+address:
+  type: object
+  fields:
+    city: {type: choice, values: [Pune, Austin, Leeds]}
+    postcode: {type: integer, min: 10000, max: 99999}
+    geo:
+      type: object
+      fields:
+        lat: {type: float, min: -90, max: 90, precision: 4}
+        lon: {type: float, min: -180, max: 180, precision: 4}
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `fields` | yes | Field name to field definition. At least one. |
+
+- A field inside an object is identified by its **path**: `address.city`, `address.geo.lat`. Paths are used in references, in CSV column names and in error locations.
+- The same field name can be used at different levels; `name` and `contact.name` are different fields.
+- `null_probability` on an object makes the whole object null. Its fields are then not generated at all.
+- Objects can be nested up to ten levels deep.
+
 ### `reference`
 
 See [References](#references).
@@ -350,6 +377,37 @@ entities:
 
 Here `sender_id` and `sender_name` describe one account, and `receiver_id` another. A link name belongs to one target entity: the same name used on references to two different entities denotes two unrelated choices.
 
+### Reading nested fields
+
+A reference can name a path inside an object, or the object itself, which copies the whole object:
+
+```yaml
+version: 1
+entities:
+  customer:
+    count: 1000
+    fields:
+      id: {type: sequence, start: 1001}
+      address:
+        type: object
+        fields:
+          city: {type: choice, values: [Pune, Austin, Leeds]}
+          postcode: {type: integer, min: 10000, max: 99999}
+  order:
+    count: 5000
+    fields:
+      customer_id: $customer.id
+      ship_city: $customer.address.city
+      ship_to: $customer.address
+```
+
+All three order fields read from the same customer. In the long form the path goes in `field`: `{type: reference, entity: customer, field: address.city}`.
+
+- If an object along the path is null in the chosen row, the reference is null.
+- A path can pass through an object that was itself copied: with the spec above, another entity could use `$order.ship_to.city`.
+- Each record gets its own copy of a copied object.
+- A reference can be declared inside an object. It still shares its row with the entity's other references to the same target.
+
 ### Other rules
 
 - Entities can be declared in any order; they are generated parents first.
@@ -360,7 +418,9 @@ Here `sender_id` and `sender_name` describe one account, and `receiver_id` anoth
 
 The same spec and seed always produce the same data. The seed comes from `--seed` (or the `seed` argument in Python) if given, otherwise from the spec. With neither, a seed is chosen and reported so the run can be repeated.
 
-Each field draws from its own random stream, and each link has its own row choice, so for a fixed seed, adding, removing or reordering other fields or entities does not change the values a field already had. Adding a second reference to an entity leaves the first unchanged.
+Each field draws from its own random stream, and each link has its own row choice, so for a fixed seed, adding, removing or reordering other fields or entities does not change the values a field already had. Adding a second reference to an entity leaves the first unchanged. The same holds for fields inside an object.
+
+One exception: changing an object's `null_probability` changes the values of the fields inside it, because they are only generated for rows where the object is present.
 
 The long form and the shorthand of the same spec generate identical data.
 
@@ -377,6 +437,23 @@ One file per entity, named `<entity>.<format>`, written to the output directory.
 | `jsonl` | One object per line. | `null` | `true` / `false` | ISO 8601 string |
 
 The format and directory come from the command line or function arguments if given, otherwise from the spec's `output` block, otherwise `csv` in `output`.
+
+### Nested records
+
+| Format | An object | A null object |
+|---|---|---|
+| `json`, `jsonl` | a nested object | `null` |
+| `csv` | one column per field inside it, named by path | every one of its columns empty |
+
+An entity with `id`, an `address` object holding `city` and `postcode`, and `tier` is written to CSV with this header:
+
+```
+id,address.city,address.postcode,tier
+```
+
+- CSV cannot tell a null object from an object whose fields are all null: both are empty cells. Use `json` or `jsonl` where the difference matters, or for deeply nested data.
+- Some loaders reject dots in column names. `output.csv_separator: "__"` names the column `address__city` instead. A spec is rejected if two columns would then share a name.
+- The separator does not affect JSON output.
 
 ## Validation
 
@@ -402,7 +479,7 @@ Values are not coerced in the long form: `min: "18"` is rejected for a number, a
 
 ## Current limits
 
-- Records are flat: a field cannot hold a nested object or list.
+- A field cannot hold a list.
 - References with different links choose independently, so they can land on the same row. With 100 accounts, about one transfer in 100 has the same sender and receiver.
 - Reference rows are chosen uniformly, so the number of children per parent cannot be controlled.
 - There are no rules across fields (such as one date falling after another), and no built-in names, emails or addresses.

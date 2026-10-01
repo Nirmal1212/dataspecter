@@ -51,3 +51,15 @@ def test_example_shorthands_produce_nulls_and_integers():
 
     assert 0.4 < codes.count(None) / len(codes) < 0.6
     assert levels == {0, 1, 2}
+
+
+def test_example_shipping_city_is_read_from_the_customers_address():
+    simulation = dataspecter.generate(dataspecter.load_spec(EXAMPLES / "shop.yaml"))
+    customers = {row["id"]: row for row in simulation.records("customer")}
+    orders = list(simulation.records("order"))
+
+    for order in orders:
+        address = customers[order["customer_id"]]["address"]
+        assert order["ship_city"] == (address["city"] if address else None)
+    assert any(order["ship_city"] is None for order in orders)
+    assert simulation.columns("customer")[-2:] == ("address.city", "address.postcode")

@@ -25,6 +25,14 @@ entities:
       referral_code:
         type: choice
         values: [FRIEND10 || 0.2, LAUNCH25 || 0.2, PARTNER || 0.1, " || 0.5"]
+      # An object groups fields. In CSV it becomes the columns address.city and
+      # address.postcode; in JSON it stays nested. One customer in ten has no address.
+      address:
+        type: object
+        null_probability: 0.1
+        fields:
+          city: {type: choice, values: [Pune, Austin, Leeds, Kochi, Denver]}
+          postcode: {type: integer, min: 10000, max: 99999}
 
   product:
     count: 50
@@ -51,6 +59,8 @@ entities:
       # are read from that same customer.
       customer_id: $customer.id
       customer_tier: $customer.tier
+      # A reference can read inside an object. Null when that customer has no address.
+      ship_city: $customer.address.city
       status:
         type: choice
         values: [delivered || 0.75, shipped || 0.12, pending || 0.08, cancelled || 0.05]

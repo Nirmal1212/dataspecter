@@ -112,6 +112,7 @@ A spec lists entities; each entity has a row `count` and `fields`; each field ha
 | `uuid` | Unique identifiers | none |
 | `constant` | The same value in every row | `value` |
 | `reference` | A value taken from another entity's rows | `entity`, `field`, `link` |
+| `object` | A nested record with its own fields | `fields` |
 
 Every type also accepts `null_probability`, the share of rows (0 to 1) that are null instead.
 
@@ -128,6 +129,8 @@ Every type also accepts `null_probability`, the share of rows (0 to 1) that are 
 | Nulls | `null_probability: 0.8` on any field, or a null entry in `values` |
 | Link to another entity | `{type: reference, entity: customer, field: id}`, or `$customer.id` |
 | Copy several values from one parent row | two references to the same entity |
+| Group fields into a nested record | `{type: object, fields: {...}}` |
+| Read inside a nested record | `$customer.address.city`, or `$customer.address` for the whole object |
 | Two independent rows of one entity | references with different `link` names |
 | Reproducible runs | `seed` in the spec, or `--seed` |
 
@@ -231,6 +234,31 @@ entities:
 ```
 
 Each order item gets one product's id and that same product's price. To pick two unrelated rows of the same entity, such as a sender and a receiver, use the long form with different `link` names; see the [reference](docs/spec-reference.md#references).
+
+### Nested records
+
+An `object` field groups fields. JSON output nests it; CSV flattens it into columns named by path.
+
+```yaml
+version: 1
+entities:
+  customer:
+    count: 1000
+    fields:
+      id: {type: sequence, start: 1001}
+      address:
+        type: object
+        fields:
+          city: {type: choice, values: [Pune, Austin, Leeds]}
+          postcode: {type: integer, min: 10000, max: 99999}
+  order:
+    count: 5000
+    fields:
+      customer_id: $customer.id
+      ship_city: $customer.address.city
+```
+
+The customer CSV has the columns `id`, `address.city` and `address.postcode`. Set `output.csv_separator: "__"` if your loader rejects dots in column names.
 
 ## Development
 
