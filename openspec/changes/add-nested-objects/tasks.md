@@ -2,9 +2,9 @@
 
 ## 1. Safety net
 
-- [ ] 1.1 Add `tests/golden/` with a spec covering every current field type, shorthand and reference rule, record its CSV, JSON and JSON Lines output for a fixed seed from the unmodified code, and add a test comparing regenerated output byte for byte; verify the test passes and fails when one generator is deliberately perturbed
-- [ ] 1.2 Add `.github/workflows/ci.yml` running `ruff check`, `ruff format --check` and `pytest` on Python 3.11 to 3.13 on Linux and Windows, and verify the workflow file parses and its commands pass locally
-- [ ] 1.3 Run the million-row flat benchmark on the unmodified code and record throughput and peak memory in `design.md` as the baseline for task 7.1
+- [x] 1.1 Add `tests/golden/` with a spec covering every current field type, shorthand and reference rule, record its CSV, JSON and JSON Lines output for a fixed seed from the unmodified code, and add a test comparing regenerated output byte for byte; verify the test passes and fails when one generator is deliberately perturbed
+- [x] 1.2 Add `.github/workflows/ci.yml` running `ruff check`, `ruff format --check` and `pytest` on Python 3.11 to 3.13 on Linux and Windows, and verify the workflow file parses and its commands pass locally
+- [x] 1.3 Run the million-row flat benchmark on the unmodified code and record throughput and peak memory in `design.md` as the baseline for task 7.1
 
 ## 2. Object model and validation
 

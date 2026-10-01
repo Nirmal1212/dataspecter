@@ -92,6 +92,14 @@ Before task group 2, the existing benchmark (one million rows of a five-field fl
 - **Copying objects costs time on reference-heavy specs** → Measured in the benchmark task with an entity that copies an object; the copy is shallow per level.
 - **CI minutes and maintenance** → One small workflow on a public repository.
 
+## Measurements
+
+Run with `benchmarks/bench.py`, best of three, Python 3.12 on the development laptop (Windows).
+
+| When | Scenario | Rows | Throughput | Peak traced memory |
+|---|---|---|---|---|
+| Baseline, before any engine change | flat | 1,000,000 | 121,191 rows/s | 0.22 MB (same at 200,000 rows) |
+
 ## Migration Plan
 
 1. Merge `feature/add-spec-shorthands` into `develop`.
