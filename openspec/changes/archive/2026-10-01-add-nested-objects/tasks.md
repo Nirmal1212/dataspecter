@@ -44,4 +44,4 @@
 - [x] 7.1 Re-run the flat benchmark and a nested one on the same machine, record both in `design.md`, and verify flat throughput is within 15% of the baseline from task 1.3 and that memory stays flat as the row count grows
 - [x] 7.2 Verify `uv run pytest`, `uv run ruff check .` and `openspec validate add-nested-objects --strict` all pass
 - [x] 7.3 Add entries under `[Unreleased]` in `CHANGELOG.md` for nested objects, nested references, CSV flattening with the separator option, and column paths in the Python API, and verify each item in the proposal is named
-- [ ] 7.4 Archive the change with `/opsx:archive` and verify `openspec/specs/` contains the new and modified requirements
+- [x] 7.4 Archive the change with `/opsx:archive` and verify `openspec/specs/` contains the new and modified requirements
