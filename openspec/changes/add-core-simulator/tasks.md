@@ -39,9 +39,9 @@
 
 ## 6. Python API
 
-- [ ] 6.1 Implement `generate(spec, seed=None)` returning a `Simulation` with `seed`, entity names and `records(entity)`, and verify with tests for iterating an entity, native Python value types, and reading back the chosen seed
-- [ ] 6.2 Implement `write(spec, out_dir=None, format=None, seed=None)` with arguments overriding the spec's `output` block overriding the defaults, returning the seed and per-entity row counts and paths; verify with tests for each level of precedence and for an unsupported format
-- [ ] 6.3 Export `load_spec`, `generate`, `write`, `SpecError` and `ExportError` from `dataspecter`, and verify with a test that using them writes nothing to stdout or stderr
+- [x] 6.1 Implement `generate(spec, seed=None)` returning a `Simulation` with `seed`, entity names and `records(entity)`, and verify with tests for iterating an entity, native Python value types, and reading back the chosen seed
+- [x] 6.2 Implement `write(spec, out_dir=None, format=None, seed=None)` with arguments overriding the spec's `output` block overriding the defaults, returning the seed and per-entity row counts and paths; verify with tests for each level of precedence and for an unsupported format
+- [x] 6.3 Export `load_spec`, `generate`, `write`, `SpecError` and `ExportError` from `dataspecter`, and verify with a test that using them writes nothing to stdout or stderr
 
 ## 7. Command line
 
