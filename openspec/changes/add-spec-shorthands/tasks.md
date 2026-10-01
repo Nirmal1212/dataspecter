@@ -34,6 +34,6 @@
 
 ## 6. Wrap-up
 
-- [ ] 6.1 Verify `uv run pytest`, `uv run ruff check .` and `openspec validate add-spec-shorthands --strict` all pass
-- [ ] 6.2 Add entries under `[Unreleased]` in `CHANGELOG.md`: the shorthands, `link` and null choice values under Added, and the shared-row behaviour under Changed marked as breaking; verify the entry names each of the six items in the proposal
+- [x] 6.1 Verify `uv run pytest`, `uv run ruff check .` and `openspec validate add-spec-shorthands --strict` all pass
+- [x] 6.2 Add entries under `[Unreleased]` in `CHANGELOG.md`: the shorthands, `link` and null choice values under Added, and the shared-row behaviour under Changed marked as breaking; verify the entry names each of the six items in the proposal
 - [ ] 6.3 Archive the change with `/opsx:archive` and verify `openspec/specs/simulation-spec` and `openspec/specs/data-generation` contain the new and modified requirements
