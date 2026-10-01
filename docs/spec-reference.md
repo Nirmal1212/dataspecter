@@ -8,6 +8,8 @@ Several things can be written two ways: a **long form**, where everything is spe
 - [Entities](#entities)
 - [Long form and shorthand at a glance](#long-form-and-shorthand-at-a-glance)
 - [Field types](#field-types)
+- [Keys every field accepts](#keys-every-field-accepts)
+- [Custom types](#custom-types)
 - [Nulls](#nulls)
 - [References](#references)
 - [Reproducibility](#reproducibility)
@@ -25,6 +27,8 @@ output:             # optional
   format: csv       # csv, json or jsonl
   dir: output/shop  # relative paths resolve against the current working directory
   csv_separator: .  # . or __ ; joins the parts of a nested column name in CSV
+types:              # optional, reusable field definitions; see Custom types
+  sku: {type: pattern, pattern: "SKU-??-####"}
 entities:           # required, at least one
   customer:
     count: 1000
@@ -59,7 +63,7 @@ Everything else (`min` and `max`, distributions, dates, sequences, constants, ob
 
 ## Field types
 
-Every mapping field has a `type`. Each type accepts only its own keys, plus `null_probability`.
+Every mapping field has a `type`: one of the built-in types below, or the name of a [custom type](#custom-types). Each type accepts only its own keys, plus the [keys every field accepts](#keys-every-field-accepts).
 
 ### `integer` and `float`
 
@@ -276,9 +280,156 @@ address:
 - `null_probability` on an object makes the whole object null. Its fields are then not generated at all.
 - Objects can be nested up to ten levels deep.
 
+### `pattern`
+
+Builds text from a mask.
+
+```yaml
+mobile: {type: pattern, pattern: "+91-%#########"}
+sku:    {type: pattern, pattern: "SKU-??-####"}
+label:  {type: pattern, pattern: "Item [#]## at 50[%]"}
+```
+
+| In the pattern | Produces |
+|---|---|
+| `#` | a digit, 0 to 9 |
+| `%` | a digit, 1 to 9 (for a position that must not be zero) |
+| `?` | an upper-case letter, A to Z |
+| `[text]` | `text` exactly as written, which is how a literal `#`, `%` or `?` is written |
+| `[[]` | a literal `[` |
+| anything else | itself |
+
+There are no backslash escapes, so a pattern is written the same way in YAML and JSON. Random letters can spell words; use digits, or a `choice` for the letters, where that matters.
+
+### `template`
+
+Builds text from other fields of the same record.
+
+```yaml
+first_name: {type: choice, values: [Asha, Ravi, Meera]}
+last_name:  {type: choice, values: [Rao, Nair, Smith]}
+email:      {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+```
+
+A placeholder is `{field}`, optionally followed by filters, applied left to right:
+
+| Filter | Effect | `José De La Cruz` becomes |
+|---|---|---|
+| `lower` | lower case | `josé de la cruz` |
+| `upper` | upper case | `JOSÉ DE LA CRUZ` |
+| `title` | first letter of each word in upper case | `José De La Cruz` |
+| `ascii` | accents removed, other non-ASCII characters dropped | `Jose De La Cruz` |
+| `slug` | `ascii`, lower case, and every run of other characters turned into one hyphen | `jose-de-la-cruz` |
+
+Rules:
+
+- **Scope is explicit.** A placeholder reads the fields beside the template: the other fields of the same entity or object. It can go down into an object beside it (`{address.city}`). To read a field one level further out, start with `^` (`{^tier}`); two levels, `^^`. Nothing else is searched, so adding a field elsewhere never changes what a template reads.
+- A placeholder must name a single value, not an object.
+- If any field a template reads is null, the template is null.
+- Numbers are written plainly, booleans as `true` or `false`, dates in ISO 8601.
+- A literal brace is written doubled: `{{` and `}}`.
+- Templates can read other templates, in any declared order, but not in a circle.
+- A template is plain text with placeholders. Nothing in it is evaluated.
+
+Inside an object, with a field from the level above:
+
+```yaml
+tier: {type: choice, values: [free, pro]}
+contact:
+  type: object
+  fields:
+    phone: {type: pattern, pattern: "+91-%#########"}
+    label: {type: template, template: "{phone} ({^tier})"}
+```
+
 ### `reference`
 
 See [References](#references).
+
+## Keys every field accepts
+
+| Key | Meaning | Default |
+|---|---|---|
+| `null_probability` | Share of rows that are null. See [Nulls](#nulls). | 0 |
+| `hidden` | Generate the field but leave it out of the output. | false |
+| `unique` | Never repeat a value within the entity. Not every type supports it. | false |
+
+These need the mapping form; a `$entity.field` shorthand takes no keys.
+
+### `hidden`
+
+A hidden field is generated, and templates and references can read it, but it does not appear in records or files. Use it for the ingredients of a template that should not be columns themselves:
+
+```yaml
+id:         {type: sequence}
+first_name: {type: choice, values: [Asha, Ravi, Meera], hidden: true}
+last_name:  {type: choice, values: [Rao, Nair, Smith], hidden: true}
+email:      {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+```
+
+The output has two columns, `id` and `email`. Hiding an object hides everything inside it. Every entity, and every object that is not hidden, needs at least one visible field. Adding or removing `hidden` never changes any generated value.
+
+### `unique`
+
+```yaml
+code: {type: pattern, pattern: "SKU-??-####", unique: true}
+```
+
+| Type | `unique` |
+|---|---|
+| `integer`, `float`, `date`, `datetime`, `choice`, `pattern` | supported |
+| `sequence`, `uuid` | accepted, and has no effect: their values are always unique |
+| `boolean`, `constant`, `template`, `reference`, `object` | rejected |
+
+- Where the number of possible values is known, a spec is rejected before generation if the entity has more rows than the field has values. `{type: integer, min: 1, max: 100, unique: true}` in an entity with `count: 500` is an error stating both numbers.
+- Fields with no fixed number of values (a `float` without `precision`, an unbounded `normal` integer) are accepted. If generation cannot find an unused value, it stops with an error naming the field; it never writes a repeat.
+- Nulls from `null_probability` are not values and may repeat.
+- To make a template unique, make one of the fields it reads unique.
+- A unique field remembers every value it has produced until the run ends. This is the one place memory grows with the number of rows: roughly 100 MB for a million ten-character values.
+
+## Custom types
+
+A field definition used in several places can be named once in a top-level `types` block and then used as a `type`:
+
+```yaml
+version: 1
+types:
+  mobile: {type: pattern, pattern: "+91-%#########"}
+  money:
+    type: object
+    fields:
+      amount: {type: float, min: 5, max: 500, precision: 2}
+      currency: {type: constant, value: INR}
+  person:
+    type: object
+    fields:
+      first_name: {type: choice, values: [Asha, Ravi, Meera]}
+      last_name: {type: choice, values: [Rao, Nair, Smith]}
+      email: {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+      mobile: {type: mobile}
+entities:
+  customer:
+    count: 1000
+    fields:
+      id: {type: sequence}
+      contact: {type: person}
+      backup_mobile: {type: mobile, null_probability: 0.7}
+  product:
+    count: 50
+    fields:
+      price: {type: money}
+      price_usd:
+        type: money
+        fields:
+          currency: {type: constant, value: USD}
+```
+
+- A field using a type behaves exactly as if the definition were written in its place. Two fields using the same type get independent values.
+- A type can be any definition, including an object, and can use other types, but not in a circle.
+- **Overrides.** Keys written beside `type` replace the same keys of the definition, as with `null_probability` on `backup_mobile`. They must be keys the underlying type accepts. For an object type, `fields` is merged by name, so `price_usd` replaces `currency` and keeps `amount`.
+- **Templates in types.** A template inside an object type reads the fields of that object, so the type is self-contained and is checked where it is declared. A type that is itself a template, or one using `^`, is checked wherever it is used.
+- **Name precedence.** If a custom type has the same name as a built-in type, the custom type wins everywhere in the spec, and inside its own definition the name means the built-in. So `integer: {type: integer, min: 0, max: 9}` narrows every `type: integer` in the spec. This rule exists so that built-in types added in later versions never break a spec that already uses the name; a `type: integer` that is not the built-in can surprise a reader, so shadow a built-in on purpose only.
+- Every declared type is validated, whether or not a field uses it. A problem in a type is reported at `types.<name>`; a problem that depends on where it is used is reported at that field and names the type.
 
 ## Nulls
 
@@ -482,5 +633,7 @@ Values are not coerced in the long form: `min: "18"` is rejected for a number, a
 - A field cannot hold a list.
 - References with different links choose independently, so they can land on the same row. With 100 accounts, about one transfer in 100 has the same sender and receiver.
 - Reference rows are chosen uniformly, so the number of children per parent cannot be controlled.
-- There are no rules across fields (such as one date falling after another), and no built-in names, emails or addresses.
+- Apart from templates there are no rules across fields (such as one date falling after another), and there are no built-in names, emails or addresses.
+- `unique` applies to one field within one entity; a combination of fields cannot be declared unique.
+- Custom types cannot be shared between spec files.
 - The values of referenced fields are held in memory while their children are generated; everything else is streamed.

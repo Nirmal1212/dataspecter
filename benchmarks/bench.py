@@ -32,6 +32,16 @@ SCENARIOS = {
         "kind": {"type": "choice", "values": ["view", "click", "buy"], "weights": [80, 15, 5]},
         "at": {"type": "datetime", "min": "2025-01-01T00:00:00", "max": "2025-12-31T23:59:59"},
     },
+    # A pattern, a unique pattern, hidden inputs and a template over them.
+    "text": {
+        "id": {"type": "sequence"},
+        "code": {"type": "pattern", "pattern": "??-####-####", "unique": True},
+        "phone": {"type": "pattern", "pattern": "+91-%#########"},
+        "first": {"type": "choice", "values": ["Asha", "Ravi", "Meera", "Tom"], "hidden": True},
+        "last": {"type": "choice", "values": ["Rao", "Nair", "Smith"], "hidden": True},
+        "email": {"type": "template", "template": "{first|slug}.{last|slug}.{id}@example.com"},
+        "amount": {"type": "float", "min": 0, "max": 500, "precision": 2},
+    },
     # An object, an object inside it, and references that copy an object and read a nested path.
     "nested": {
         "entities": {

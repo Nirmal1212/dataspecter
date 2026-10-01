@@ -2,12 +2,35 @@
   "version": 1,
   "seed": 42,
   "output": { "format": "csv", "dir": "output/shop" },
+  "types": {
+    "money": {
+      "type": "object",
+      "fields": {
+        "amount": { "type": "float", "min": 5, "max": 500, "precision": 2 },
+        "currency": { "type": "constant", "value": "EUR" }
+      }
+    }
+  },
   "entities": {
     "customer": {
       "count": 1000,
       "fields": {
         "id": { "type": "sequence", "start": 1001 },
         "external_ref": { "type": "uuid" },
+        "first_name": {
+          "type": "choice",
+          "values": ["Asha", "Ravi", "Meera", "José", "Erin", "Tom"],
+          "hidden": true
+        },
+        "last_name": {
+          "type": "choice",
+          "values": ["Rao", "Nair", "O'Brien", "Smith", "Müller"],
+          "hidden": true
+        },
+        "email": {
+          "type": "template",
+          "template": "{first_name|slug}.{last_name|slug}@example.com"
+        },
         "tier": { "type": "choice", "values": ["free || 70", "pro || 25", "enterprise || 5"] },
         "age": {
           "type": "integer",
@@ -34,6 +57,11 @@
       "count": 50,
       "fields": {
         "id": { "type": "sequence" },
+        "code": { "type": "pattern", "pattern": "SKU-??-####", "unique": true },
+        "list_price": {
+          "type": "money",
+          "fields": { "currency": { "type": "constant", "value": "USD" } }
+        },
         "category": { "type": "choice", "values": ["books", "games", "music", "tools"] },
         "price": {
           "type": "float",

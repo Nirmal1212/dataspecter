@@ -113,8 +113,18 @@ A spec lists entities; each entity has a row `count` and `fields`; each field ha
 | `constant` | The same value in every row | `value` |
 | `reference` | A value taken from another entity's rows | `entity`, `field`, `link` |
 | `object` | A nested record with its own fields | `fields` |
+| `pattern` | Text from a mask such as `SKU-??-####` | `pattern` |
+| `template` | Text built from other fields of the record | `template` |
 
-Every type also accepts `null_probability`, the share of rows (0 to 1) that are null instead.
+A field can also use a custom type declared once in a top-level `types` block.
+
+Every type also accepts these keys:
+
+| Key | Meaning |
+|---|---|
+| `null_probability` | The share of rows (0 to 1) that are null instead. |
+| `hidden` | Generate the field, so templates and references can read it, but leave it out of the output. |
+| `unique` | Never repeat a value within the entity. Supported where it is meaningful; see the reference. |
 
 ### Supported operations on values
 
@@ -131,6 +141,10 @@ Every type also accepts `null_probability`, the share of rows (0 to 1) that are 
 | Copy several values from one parent row | two references to the same entity |
 | Group fields into a nested record | `{type: object, fields: {...}}` |
 | Read inside a nested record | `$customer.address.city`, or `$customer.address` for the whole object |
+| Text from a mask | `{type: pattern, pattern: "+91-%#########"}` |
+| Text from other fields | `{type: template, template: "{first_name\|slug}@example.com"}` |
+| No repeated values | `unique: true` |
+| Reuse a definition | a `types` block, then `type: <name>` |
 | Two independent rows of one entity | references with different `link` names |
 | Reproducible runs | `seed` in the spec, or `--seed` |
 
@@ -259,6 +273,30 @@ entities:
 ```
 
 The customer CSV has the columns `id`, `address.city` and `address.postcode`. Set `output.csv_separator: "__"` if your loader rejects dots in column names.
+
+### Text, hidden fields and custom types
+
+```yaml
+version: 1
+types:
+  mobile: {type: pattern, pattern: "+91-%#########"}
+entities:
+  customer:
+    count: 1000
+    fields:
+      id: {type: sequence}
+      first_name: {type: choice, values: [Asha, Ravi, Meera], hidden: true}
+      last_name: {type: choice, values: [Rao, Nair, Smith], hidden: true}
+      email: {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+      mobile: {type: mobile, unique: true}
+      code: {type: pattern, pattern: "CUST-??-####", unique: true}
+```
+
+- `pattern`: `#` is a digit, `%` a non-zero digit, `?` an upper-case letter, and `[text]` is literal.
+- `template`: `{field}` reads another field of the same record; filters such as `slug`, `lower` and `upper` follow a `|`.
+- `hidden` fields feed the template without becoming columns: the output has `id`, `email`, `mobile` and `code`.
+- `unique` guarantees no repeats, and a spec that asks for more unique values than a field can produce is rejected before anything is generated.
+- `types` names a definition once; any field can then use it.
 
 ## Development
 

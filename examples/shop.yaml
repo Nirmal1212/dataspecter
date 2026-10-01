@@ -8,12 +8,26 @@ output:
   format: csv
   dir: output/shop
 
+# Reusable definitions. A field uses one with type: <name>.
+types:
+  money:
+    type: object
+    fields:
+      amount: {type: float, min: 5, max: 500, precision: 2}
+      currency: {type: constant, value: EUR}
+
 entities:
   customer:
     count: 1000
     fields:
       id: {type: sequence, start: 1001}
       external_ref: {type: uuid}
+      # Hidden fields are generated and can be read by templates, but are not written out.
+      first_name: {type: choice, values: [Asha, Ravi, Meera, José, Erin, Tom], hidden: true}
+      last_name: {type: choice, values: [Rao, Nair, O'Brien, Smith, Müller], hidden: true}
+      # A template builds text from other fields of the same record. slug makes any name
+      # safe for an email address.
+      email: {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
       # value || weight: 70% free, 25% pro, 5% enterprise. Weights are relative.
       tier: {type: choice, values: [free || 70, pro || 25, enterprise || 5]}
       # min to max || weight: most customers are young, a few are over 60.
@@ -38,6 +52,13 @@ entities:
     count: 50
     fields:
       id: {type: sequence}
+      # A pattern: ? is a letter, # a digit. unique means no two products share a code.
+      code: {type: pattern, pattern: "SKU-??-####", unique: true}
+      # The custom type above, with one of its fields overridden.
+      list_price:
+        type: money
+        fields:
+          currency: {type: constant, value: USD}
       category: {type: choice, values: [books, games, music, tools]}
       # A bell curve around 40, never below 5 or above 200.
       price:

@@ -90,6 +90,17 @@ Types where uniqueness makes no sense or cannot be controlled (`boolean`, `const
 
 Everything here is a new type or an optional key. No existing spec changes meaning.
 
+## Measurements
+
+Run with `benchmarks/bench.py`, best of three, Python 3.12 on the development laptop (Windows), the same machine as the baseline of 121,191 rows/s recorded in `add-nested-objects`.
+
+| Scenario | Rows | Throughput | Peak traced memory |
+|---|---|---|---|
+| flat | 1,000,000 | 127,525 rows/s (5% above baseline) | unchanged code path |
+| text | 1,000,000 | 41,585 rows/s | 86.8 MB (21.1 MB at 200,000 rows) |
+
+The flat figure is within the 15% allowed. The text scenario has a pattern, a unique twelve-character pattern, two hidden choices and a template. Its memory grows with the row count, as expected: the unique field keeps every value, at roughly 87 bytes per value here.
+
 ## Risks / Trade-offs
 
 - **Memory for unique fields grows with rows** → Opt-in, documented with a rough size, and measured in the benchmark task.

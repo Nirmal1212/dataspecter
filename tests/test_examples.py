@@ -63,3 +63,24 @@ def test_example_shipping_city_is_read_from_the_customers_address():
         assert order["ship_city"] == (address["city"] if address else None)
     assert any(order["ship_city"] is None for order in orders)
     assert simulation.columns("customer")[-2:] == ("address.city", "address.postcode")
+
+
+def test_example_text_fields_types_and_hidden_fields():
+    import re
+
+    simulation = dataspecter.generate(dataspecter.load_spec(EXAMPLES / "shop.yaml"))
+    customers = list(simulation.records("customer"))
+    products = list(simulation.records("product"))
+
+    assert all("first_name" not in row and "last_name" not in row for row in customers)
+    assert all(re.fullmatch(r"[a-z-]+\.[a-z-]+@example\.com", row["email"]) for row in customers)
+    assert "email" in simulation.columns("customer")
+    codes = [row["code"] for row in products]
+    assert len(set(codes)) == len(codes)
+    assert all(re.fullmatch(r"SKU-[A-Z]{2}-\d{4}", code) for code in codes)
+    assert all(row["list_price"]["currency"] == "USD" for row in products)
+    assert simulation.columns("product")[1:4] == (
+        "code",
+        "list_price.amount",
+        "list_price.currency",
+    )
