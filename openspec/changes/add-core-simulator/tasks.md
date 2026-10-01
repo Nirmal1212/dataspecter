@@ -24,11 +24,11 @@
 
 ## 4. Generation engine
 
-- [ ] 4.1 Implement seed resolution (explicit seed, then spec seed, then a random seed that is recorded) and verify with tests for each of the three cases
-- [ ] 4.2 Implement topological ordering of entities by their references and verify with tests that a child declared before its parent, and a three-entity chain, are ordered parents first
-- [ ] 4.3 Implement row iteration that yields one dict per row in declared field order while retaining only referenced columns, and verify with tests for exact row counts, field order, and that an unreferenced field is not retained
-- [ ] 4.4 Implement reference resolution from the retained parent columns and verify with tests that every child value exists among the parent's values, for a single reference and for a chain
-- [ ] 4.5 Add reproducibility tests and verify that the same seed gives identical rows, different seeds differ, and adding a field or an entity leaves all existing values unchanged
+- [x] 4.1 Implement seed resolution (explicit seed, then spec seed, then a random seed that is recorded) and verify with tests for each of the three cases
+- [x] 4.2 Implement topological ordering of entities by their references and verify with tests that a child declared before its parent, and a three-entity chain, are ordered parents first
+- [x] 4.3 Implement row iteration that yields one dict per row in declared field order while retaining only referenced columns, and verify with tests for exact row counts, field order, and that an unreferenced field is not retained
+- [x] 4.4 Implement reference resolution from the retained parent columns and verify with tests that every child value exists among the parent's values, for a single reference and for a chain
+- [x] 4.5 Add reproducibility tests and verify that the same seed gives identical rows, different seeds differ, and adding a field or an entity leaves all existing values unchanged
 
 ## 5. File export
 
