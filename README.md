@@ -23,7 +23,7 @@ entities:
 
 ## Status
 
-Early development, version 0.1.0, not yet released or published. Streaming to an HTTP endpoint is planned but not built.
+Early development, version 0.1.0. Not yet published to a package index. Streaming to an HTTP endpoint is planned but not built.
 
 ## Install
 
