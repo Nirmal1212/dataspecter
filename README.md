@@ -71,6 +71,7 @@ dataspecter validate examples/shop.yaml
 | `--out DIR` | Output directory | the spec's `output.dir`, else `output` |
 | `--format csv\|json\|jsonl` | Output format | the spec's `output.format`, else `csv` |
 | `--seed INTEGER` | Seed for the run | the spec's `seed`, else a random one that is printed |
+| `--locale CODE` | Locale for names, phones and addresses, such as `en_IN` | the spec's `locale`, else `en_US` |
 
 Exit codes: `0` on success, `2` when the spec or the arguments are invalid or the spec file cannot be read, `1` for any other failure.
 
@@ -112,8 +113,25 @@ A spec lists entities; each entity has a row `count` and `fields`; each field ha
 | `uuid` | Unique identifiers | none |
 | `constant` | The same value in every row | `value` |
 | `reference` | A value taken from another entity's rows | `entity`, `field`, `link` |
+| `object` | A nested record with its own fields | `fields` |
+| `pattern` | Text from a mask such as `SKU-??-####` | `pattern` |
+| `template` | Text built from other fields of the record | `template` |
 
-Every type also accepts `null_probability`, the share of rows (0 to 1) that are null instead.
+| `first_name`, `last_name`, `full_name` | Names from bundled lists | `locale`, `format` |
+| `email` | An email address at a reserved domain | `locale`, `domain` |
+| `phone` | A phone number in the locale's format | `locale`, `pattern` |
+| `address` | An object with street, city, state, postcode and country | `locale`, `fields` |
+| `faker` | A value from the optional Faker library | `provider`, `locale`, `args` |
+
+A field can also use a custom type declared once in a top-level `types` block.
+
+Every type also accepts these keys:
+
+| Key | Meaning |
+|---|---|
+| `null_probability` | The share of rows (0 to 1) that are null instead. |
+| `hidden` | Generate the field, so templates and references can read it, but leave it out of the output. |
+| `unique` | Never repeat a value within the entity. Supported where it is meaningful; see the reference. |
 
 ### Supported operations on values
 
@@ -128,6 +146,14 @@ Every type also accepts `null_probability`, the share of rows (0 to 1) that are 
 | Nulls | `null_probability: 0.8` on any field, or a null entry in `values` |
 | Link to another entity | `{type: reference, entity: customer, field: id}`, or `$customer.id` |
 | Copy several values from one parent row | two references to the same entity |
+| Group fields into a nested record | `{type: object, fields: {...}}` |
+| Read inside a nested record | `$customer.address.city`, or `$customer.address` for the whole object |
+| Text from a mask | `{type: pattern, pattern: "+91-%#########"}` |
+| Text from other fields | `{type: template, template: "{first_name\|slug}@example.com"}` |
+| No repeated values | `unique: true` |
+| Reuse a definition | a `types` block, then `type: <name>` |
+| Realistic people and places | `{type: full_name}`, `{type: email}`, `{type: phone}`, `{type: address}` |
+| Another region, or other kinds of data | `locale: en_IN`, or `{type: faker, provider: company}` |
 | Two independent rows of one entity | references with different `link` names |
 | Reproducible runs | `seed` in the spec, or `--seed` |
 
@@ -231,6 +257,83 @@ entities:
 ```
 
 Each order item gets one product's id and that same product's price. To pick two unrelated rows of the same entity, such as a sender and a receiver, use the long form with different `link` names; see the [reference](docs/spec-reference.md#references).
+
+### Nested records
+
+An `object` field groups fields. JSON output nests it; CSV flattens it into columns named by path.
+
+```yaml
+version: 1
+entities:
+  customer:
+    count: 1000
+    fields:
+      id: {type: sequence, start: 1001}
+      address:
+        type: object
+        fields:
+          city: {type: choice, values: [Pune, Austin, Leeds]}
+          postcode: {type: integer, min: 10000, max: 99999}
+  order:
+    count: 5000
+    fields:
+      customer_id: $customer.id
+      ship_city: $customer.address.city
+```
+
+The customer CSV has the columns `id`, `address.city` and `address.postcode`. Set `output.csv_separator: "__"` if your loader rejects dots in column names.
+
+### Text, hidden fields and custom types
+
+```yaml
+version: 1
+types:
+  mobile: {type: pattern, pattern: "+91-%#########"}
+entities:
+  customer:
+    count: 1000
+    fields:
+      id: {type: sequence}
+      first_name: {type: choice, values: [Asha, Ravi, Meera], hidden: true}
+      last_name: {type: choice, values: [Rao, Nair, Smith], hidden: true}
+      email: {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+      mobile: {type: mobile, unique: true}
+      code: {type: pattern, pattern: "CUST-??-####", unique: true}
+```
+
+- `pattern`: `#` is a digit, `%` a non-zero digit, `?` an upper-case letter, and `[text]` is literal.
+- `template`: `{field}` reads another field of the same record; filters such as `slug`, `lower` and `upper` follow a `|`.
+- `hidden` fields feed the template without becoming columns: the output has `id`, `email`, `mobile` and `code`.
+- `unique` guarantees no repeats, and a spec that asks for more unique values than a field can produce is rejected before anything is generated.
+- `types` names a definition once; any field can then use it.
+
+### Realistic data
+
+```yaml
+version: 1
+locale: en_IN
+entities:
+  customer:
+    count: 1000
+    fields:
+      id: {type: sequence, start: 1001}
+      first_name: {type: first_name, hidden: true}
+      last_name: {type: last_name, hidden: true}
+      name: {type: template, template: "{first_name} {last_name}"}
+      email: {type: template, template: "{first_name|slug}.{last_name|slug}@example.com"}
+      mobile: {type: phone, unique: true}
+      home: {type: address}
+  order:
+    count: 5000
+    fields:
+      customer_id: $customer.id
+      ship_city: $customer.home.city
+```
+
+- Names, phone numbers and addresses come from data bundled for India (`en_IN`) and the United States (`en_US`). Set `locale` in the spec, per field, or with `--locale`.
+- An address is consistent: the state is the city's state and the postcode starts with a prefix of that city.
+- The built-in `email` type uses domains reserved for documentation, and `en_US` phone numbers use the range reserved for fiction. Indian numbers have no reserved range and **can belong to real people**; never contact generated numbers.
+- For other regions or other kinds of data, the `faker` type calls the [Faker](https://faker.readthedocs.io) library, for example `{type: faker, provider: company, locale: de_DE}`. It is optional: `pip install faker`.
 
 ## Development
 

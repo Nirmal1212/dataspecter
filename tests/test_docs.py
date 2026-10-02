@@ -1,5 +1,6 @@
 """Every YAML example in the docs loads, and each long form equals its shorthand."""
 
+import importlib.util
 import re
 from pathlib import Path
 
@@ -27,8 +28,13 @@ def as_spec(block: str) -> dict:
     return {"version": 1, "entities": {"example": {"count": 5, "fields": raw}}}
 
 
+FAKER_INSTALLED = importlib.util.find_spec("faker") is not None
+
+
 def blocks(text: str) -> list[str]:
-    return YAML_BLOCK.findall(text)
+    """Return the YAML examples, leaving out those that need Faker when it is not installed."""
+    found = YAML_BLOCK.findall(text)
+    return [block for block in found if FAKER_INSTALLED or "type: faker" not in block]
 
 
 @pytest.mark.parametrize("block", blocks(REFERENCE) + blocks(README))

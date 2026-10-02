@@ -1,13 +1,31 @@
 {
   "version": 1,
   "seed": 42,
+  "locale": "en_IN",
   "output": { "format": "csv", "dir": "output/shop" },
+  "types": {
+    "money": {
+      "type": "object",
+      "fields": {
+        "amount": { "type": "float", "min": 5, "max": 500, "precision": 2 },
+        "currency": { "type": "constant", "value": "EUR" }
+      }
+    }
+  },
   "entities": {
     "customer": {
       "count": 1000,
       "fields": {
         "id": { "type": "sequence", "start": 1001 },
         "external_ref": { "type": "uuid" },
+        "first_name": { "type": "first_name", "hidden": true },
+        "last_name": { "type": "last_name", "hidden": true },
+        "name": { "type": "template", "template": "{first_name} {last_name}" },
+        "email": {
+          "type": "template",
+          "template": "{first_name|slug}.{last_name|slug}@example.com"
+        },
+        "mobile": { "type": "phone", "unique": true },
         "tier": { "type": "choice", "values": ["free || 70", "pro || 25", "enterprise || 5"] },
         "age": {
           "type": "integer",
@@ -19,13 +37,19 @@
         "referral_code": {
           "type": "choice",
           "values": ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"]
-        }
+        },
+        "address": { "type": "address", "null_probability": 0.1 }
       }
     },
     "product": {
       "count": 50,
       "fields": {
         "id": { "type": "sequence" },
+        "code": { "type": "pattern", "pattern": "SKU-??-####", "unique": true },
+        "list_price": {
+          "type": "money",
+          "fields": { "currency": { "type": "constant", "value": "USD" } }
+        },
         "category": { "type": "choice", "values": ["books", "games", "music", "tools"] },
         "price": {
           "type": "float",
@@ -46,6 +70,7 @@
         "id": { "type": "uuid" },
         "customer_id": "$customer.id",
         "customer_tier": "$customer.tier",
+        "ship_city": "$customer.address.city",
         "status": {
           "type": "choice",
           "values": ["delivered || 0.75", "shipped || 0.12", "pending || 0.08", "cancelled || 0.05"]

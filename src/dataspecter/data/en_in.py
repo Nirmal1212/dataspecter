@@ -1,0 +1,128 @@
+"""Bundled data for the locale en_IN. Sources and review status are in SOURCES.md."""
+
+COUNTRY = "India"
+POSTCODE_LENGTH = 6
+
+# +91- followed by ten digits, the first being 6 to 9. India has no range reserved for
+# fictional numbers, so a number in this format may belong to a real subscriber.
+PHONE = (("literal", "+91-"), ("six_to_nine", ""), *((("digit", ""),) * 9))
+
+GIVEN_NAMES = (
+    "Aarav", "Aditi", "Aditya", "Akash", "Akshay", "Alok", "Amit", "Amrita", "Ananya", "Anil",
+    "Anita", "Anjali", "Ankit", "Anu", "Anushka", "Arjun", "Arun", "Asha", "Ashok", "Ayesha",
+    "Bhavna", "Chetan", "Deepa", "Deepak", "Devika", "Dhruv", "Divya", "Farhan", "Fatima",
+    "Gaurav", "Gayatri", "Geeta", "Gopal", "Harish", "Harsha", "Imran", "Indira", "Isha",
+    "Jaya", "Joseph", "Jyoti", "Kabir", "Kamal", "Karan", "Kartik", "Kavita", "Kiran",
+    "Krishna", "Lakshmi", "Lata", "Madhav", "Mahesh", "Manish", "Manoj", "Mary", "Meena",
+    "Meera", "Mohan", "Mukesh", "Nandini", "Naveen", "Neha", "Nikhil", "Nisha", "Nitin",
+    "Pallavi", "Pankaj", "Pooja", "Prakash", "Pranav", "Priya", "Rahul", "Raj", "Rajesh",
+    "Rakesh", "Ramesh", "Rani", "Ravi", "Rekha", "Ritu", "Rohan", "Rohit", "Sachin", "Sagar",
+    "Sandeep", "Sanjay", "Sarita", "Seema", "Shalini", "Shankar", "Shreya", "Shweta",
+    "Siddharth", "Sneha", "Sonia", "Sunil", "Sunita", "Suresh", "Swati", "Tanvi", "Tarun",
+    "Thomas", "Uma", "Varun", "Vijay", "Vikram", "Vinod", "Vivek", "Yash", "Zoya",
+)  # fmt: skip
+
+FAMILY_NAMES = (
+    "Agarwal", "Ahmed", "Ansari", "Arora", "Bajaj", "Banerjee", "Bansal", "Basu", "Bedi", "Bhat",
+    "Bhatia", "Bhatt", "Bhattacharya", "Bose", "Chakraborty", "Chandra", "Chatterjee",
+    "Chaudhary", "Chauhan", "Chopra", "Chowdhury", "Das", "Dasgupta", "Desai", "Deshmukh",
+    "Dsouza", "Dutta", "Fernandes", "Gandhi", "Garg", "George", "Ghosh", "Gill", "Goel",
+    "Gowda", "Goyal", "Grewal", "Gupta", "Hegde", "Iyengar", "Iyer", "Jain", "Jha", "Joshi",
+    "Kapoor", "Kaur", "Khan", "Khanna", "Kohli", "Kulkarni", "Kumar", "Kurian", "Lal",
+    "Luthra", "Mahajan", "Malhotra", "Malik", "Mathew", "Mehta", "Menon", "Mishra", "Mittal",
+    "Mukherjee", "Naidu", "Nair", "Nambiar", "Narayan", "Oberoi", "Pandey", "Parekh", "Patel",
+    "Pathak", "Patil", "Pillai", "Pinto", "Prasad", "Qureshi", "Rajan", "Rao", "Rathore",
+    "Reddy", "Rodrigues", "Roy", "Saxena", "Sen", "Sethi", "Shah", "Sharma", "Sheikh",
+    "Shetty", "Shukla", "Siddiqui", "Singh", "Sinha", "Sodhi", "Srinivasan", "Subramanian",
+    "Thakur", "Tiwari", "Trivedi", "Varghese", "Varma", "Verma", "Yadav", "Zaveri",
+)  # fmt: skip
+
+STREET_NAMES = (
+    "MG Road", "Station Road", "Gandhi Road", "Nehru Road", "Park Street", "Church Street",
+    "Temple Road", "Market Road", "College Road", "Lake Road", "Ring Road", "Main Road",
+    "Hill Road", "Link Road", "Mall Road", "Residency Road", "Brigade Road",
+    "Commercial Street", "Ashok Marg", "Tilak Road", "Sardar Patel Road", "Ambedkar Road",
+    "Subhash Road", "Rajaji Road", "Anna Salai", "Cross Road", "Canal Road", "Airport Road",
+    "Industrial Area Road", "Old Town Road",
+)  # fmt: skip
+
+STATES = (
+    "Andhra Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Delhi", "Goa", "Gujarat",
+    "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", "Kerala",
+    "Madhya Pradesh", "Maharashtra", "Odisha", "Punjab", "Rajasthan", "Tamil Nadu", "Telangana",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal",
+)  # fmt: skip
+
+# (city, state, leading digits of the PIN codes used in that city)
+CITIES = (
+    ("Mumbai", "Maharashtra", ("400",)),
+    ("Pune", "Maharashtra", ("411",)),
+    ("Nagpur", "Maharashtra", ("440",)),
+    ("Nashik", "Maharashtra", ("422",)),
+    ("Aurangabad", "Maharashtra", ("431",)),
+    ("Kolhapur", "Maharashtra", ("416",)),
+    ("Solapur", "Maharashtra", ("413",)),
+    ("New Delhi", "Delhi", ("110",)),
+    ("Bengaluru", "Karnataka", ("560",)),
+    ("Mysuru", "Karnataka", ("570",)),
+    ("Mangaluru", "Karnataka", ("575",)),
+    ("Hubballi", "Karnataka", ("580",)),
+    ("Belagavi", "Karnataka", ("590",)),
+    ("Chennai", "Tamil Nadu", ("600",)),
+    ("Coimbatore", "Tamil Nadu", ("641",)),
+    ("Madurai", "Tamil Nadu", ("625",)),
+    ("Tiruchirappalli", "Tamil Nadu", ("620",)),
+    ("Salem", "Tamil Nadu", ("636",)),
+    ("Hyderabad", "Telangana", ("500",)),
+    ("Warangal", "Telangana", ("506",)),
+    ("Visakhapatnam", "Andhra Pradesh", ("530",)),
+    ("Vijayawada", "Andhra Pradesh", ("520",)),
+    ("Guntur", "Andhra Pradesh", ("522",)),
+    ("Tirupati", "Andhra Pradesh", ("517",)),
+    ("Kolkata", "West Bengal", ("700",)),
+    ("Howrah", "West Bengal", ("711",)),
+    ("Siliguri", "West Bengal", ("734",)),
+    ("Durgapur", "West Bengal", ("713",)),
+    ("Ahmedabad", "Gujarat", ("380",)),
+    ("Surat", "Gujarat", ("395",)),
+    ("Vadodara", "Gujarat", ("390",)),
+    ("Rajkot", "Gujarat", ("360",)),
+    ("Jaipur", "Rajasthan", ("302",)),
+    ("Jodhpur", "Rajasthan", ("342",)),
+    ("Udaipur", "Rajasthan", ("313",)),
+    ("Kota", "Rajasthan", ("324",)),
+    ("Lucknow", "Uttar Pradesh", ("226",)),
+    ("Kanpur", "Uttar Pradesh", ("208",)),
+    ("Varanasi", "Uttar Pradesh", ("221",)),
+    ("Agra", "Uttar Pradesh", ("282",)),
+    ("Noida", "Uttar Pradesh", ("201",)),
+    ("Prayagraj", "Uttar Pradesh", ("211",)),
+    ("Meerut", "Uttar Pradesh", ("250",)),
+    ("Bhopal", "Madhya Pradesh", ("462",)),
+    ("Indore", "Madhya Pradesh", ("452",)),
+    ("Gwalior", "Madhya Pradesh", ("474",)),
+    ("Jabalpur", "Madhya Pradesh", ("482",)),
+    ("Patna", "Bihar", ("800",)),
+    ("Gaya", "Bihar", ("823",)),
+    ("Kochi", "Kerala", ("682",)),
+    ("Thiruvananthapuram", "Kerala", ("695",)),
+    ("Kozhikode", "Kerala", ("673",)),
+    ("Thrissur", "Kerala", ("680",)),
+    ("Chandigarh", "Chandigarh", ("160",)),
+    ("Ludhiana", "Punjab", ("141",)),
+    ("Amritsar", "Punjab", ("143",)),
+    ("Jalandhar", "Punjab", ("144",)),
+    ("Gurugram", "Haryana", ("122",)),
+    ("Faridabad", "Haryana", ("121",)),
+    ("Bhubaneswar", "Odisha", ("751",)),
+    ("Cuttack", "Odisha", ("753",)),
+    ("Guwahati", "Assam", ("781",)),
+    ("Ranchi", "Jharkhand", ("834",)),
+    ("Jamshedpur", "Jharkhand", ("831",)),
+    ("Raipur", "Chhattisgarh", ("492",)),
+    ("Dehradun", "Uttarakhand", ("248",)),
+    ("Panaji", "Goa", ("403",)),
+    ("Shimla", "Himachal Pradesh", ("171",)),
+    ("Srinagar", "Jammu and Kashmir", ("190",)),
+    ("Jammu", "Jammu and Kashmir", ("180",)),
+)

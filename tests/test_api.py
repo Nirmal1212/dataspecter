@@ -165,6 +165,7 @@ def test_nothing_is_printed(tmp_path, capsys):
 def test_public_names():
     assert set(dataspecter.__all__) == {
         "ExportError",
+        "GenerationError",
         "SpecError",
         "__version__",
         "generate",

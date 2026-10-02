@@ -1,0 +1,151 @@
+id,customer_id,customer_tier,status,placed_at,discount_pct,note
+25a87a32-302b-4318-938c-19eea5db7326,1018,pro,delivered,2025-03-30T02:01:04,,$5.00
+935bb90a-525f-4924-ad93-56c26276c9d8,1023,free,delivered,2025-12-19T16:46:44,16,plain
+9c0d3ac2-8375-4abc-a3cf-0235881631aa,1021,pro,delivered,2025-07-07T20:14:31,22,"has ""quotes"""
+c465cb2f-e39d-41fa-9f21-45a2650feb78,1006,free,delivered,2025-01-24T11:19:51,,$5.00
+6b2cbfe0-3063-4cdf-8e57-2ab3d3129e3a,1005,pro,delivered,2025-11-02T19:30:46,,$5.00
+6dfbe056-9ac7-4aed-b9f1-6ede0c29d804,1054,free,delivered,2025-02-12T06:52:09,,"has ""quotes"""
+f71f5a33-0eac-4721-ab51-bdbfa4fec5fe,1039,pro,pending,2025-02-19T16:55:05,28,$5.00
+bf62a25a-9981-4e34-ad89-1a908214c2a6,1037,free,delivered,2025-01-16T20:34:18,,plain
+dcd49194-4444-4bb4-9613-7cf981d25c5b,1058,free,shipped,2025-02-02T18:29:31,30,$5.00
+52209a08-25d7-4e97-9a21-6ee786fc084d,1050,free,shipped,2025-09-28T00:29:28,,plain
+c5c29597-adb4-41b4-bf70-2905acd96c04,1016,free,delivered,2025-07-15T13:51:25,23,plain
+0ae14446-1802-48d5-b302-9055bcaeffd6,1041,free,delivered,2025-06-25T15:15:48,,"has, comma"
+6f8fb643-b032-44cf-88ac-77a9dca79660,1044,pro,delivered,2025-03-02T23:46:11,,"has, comma"
+f1defc0d-b919-479e-a782-760edce19254,1039,pro,delivered,2025-12-18T11:21:34,,plain
+74cb7daa-c864-4a31-8194-377a02d1fd1f,1040,free,shipped,2025-01-11T18:48:39,,plain
+85c25e45-61ee-462f-8908-35793608f525,1055,free,delivered,2025-05-23T01:22:33,18,"has ""quotes"""
+3752baed-f228-4572-9f8d-978f8d6d6661,1042,pro,delivered,2025-09-07T09:01:59,,"has, comma"
+080e92d8-72b0-4dd9-a83d-96b9689e1cd8,1001,free,delivered,2025-01-03T21:19:08,,plain
+d724a761-9377-4a80-aeb1-da9204a0bd53,1017,free,delivered,2025-05-15T15:55:54,28,"has ""quotes"""
+6f0db946-205c-4837-be11-91edd1b12910,1055,free,delivered,2025-04-30T02:59:39,26,"has, comma"
+90cb37ad-af74-4e89-8e14-538bf52aa7d3,1046,free,shipped,2025-07-06T02:21:49,,"has ""quotes"""
+95752d03-0d6e-4110-9c5e-f8a49c7135e2,1010,free,delivered,2025-06-05T14:51:22,,"has ""quotes"""
+37ac2452-689a-43a5-857b-3e156e5a502f,1060,free,delivered,2025-02-20T14:05:07,,"has ""quotes"""
+d5634f06-b8cf-41fe-98be-79456a529597,1003,free,delivered,2025-08-08T10:21:46,,"has, comma"
+55b37f00-c773-42d2-9eff-e61d81707ca9,1044,pro,delivered,2025-03-06T13:24:32,,plain
+4cc93404-a472-49b0-b698-8e05978457f5,1020,free,delivered,2025-08-17T14:33:10,,plain
+4fc89006-6e1d-43b5-ae75-5cc6cd0178e0,1042,pro,shipped,2025-09-05T21:02:12,,"has, comma"
+b1e885a0-0218-42b7-8a1d-99737cc1d2c5,1043,free,delivered,2025-12-23T00:54:16,,"has, comma"
+371dbf38-adbe-4014-9916-b9fb09e8f730,1050,free,delivered,2025-08-13T08:32:27,,plain
+29c6aea9-3549-4cf5-8382-74e9ac5fc31c,1033,free,delivered,2025-10-24T02:11:59,,$5.00
+66d6894f-8323-4ad3-a2e5-41fa86cd80ca,1010,free,delivered,2025-04-14T04:43:46,9,"has, comma"
+818550be-b7d6-40e7-966d-bac052bfc28f,1058,free,delivered,2025-03-05T02:46:06,,$5.00
+d4121f83-275c-46c3-9d19-e80a1ad46300,1046,free,delivered,2025-09-14T03:38:33,,plain
+7a7f3e7e-e1f8-4fa6-81cd-b7d5b70f9fc8,1003,free,delivered,2025-02-26T23:24:48,,"has ""quotes"""
+ee31cf4e-f382-4c73-b8ac-7398b9a04afa,1040,free,delivered,2025-01-20T07:35:37,,$5.00
+2ac7d92e-5aa3-429d-a2a6-13a6c65056e7,1033,free,cancelled,2025-02-13T07:24:17,23,"has ""quotes"""
+15c9fa14-4bf0-417c-b610-06aa6b3a19ff,1042,pro,shipped,2025-12-05T20:14:10,,$5.00
+9938f6ec-a3b7-4e9d-9d0e-d2509406f8bf,1012,free,delivered,2025-02-20T01:02:54,,plain
+24e37aa6-5bb4-4e97-9193-3c8c41f1bcd4,1045,pro,delivered,2025-07-09T00:16:35,,$5.00
+f97ffde1-25cd-4a0e-abb6-e302736294fb,1034,free,delivered,2025-07-23T20:20:16,20,"has, comma"
+8113247b-d154-4e80-870c-9f2556eacfe6,1052,free,delivered,2025-02-10T04:39:56,6,"has, comma"
+167e34fa-cce5-434f-855b-2acd3cbee8a2,1034,free,delivered,2025-02-21T10:29:45,,$5.00
+cd7613f7-2961-4a04-9c3e-9d3020cdd329,1040,free,pending,2025-01-31T13:31:39,,$5.00
+799e6c57-91fc-4462-bc17-b04d7a79f7ff,1054,free,pending,2025-07-13T10:40:44,,$5.00
+0607a7f0-f36f-4a4e-826c-97b4a05b2f45,1045,pro,shipped,2025-06-07T19:20:28,,$5.00
+5e17e506-3563-4846-ba11-34b028b1c3cf,1030,free,delivered,2025-12-12T20:27:23,13,plain
+6250bcbc-e0f9-498b-9a05-508342edc4a5,1049,free,delivered,2025-10-14T07:38:49,10,$5.00
+2fbbe385-5b4f-4d9b-9340-09688b45ebb6,1020,free,delivered,2025-01-08T06:37:59,,$5.00
+63c8d454-f971-4e3e-95a6-449423902878,1046,free,delivered,2025-01-26T04:06:02,,$5.00
+0ec7db0d-de8e-43ed-801e-2f0ba308c971,1023,free,cancelled,2025-10-01T08:39:21,28,"has, comma"
+a364511f-26e6-4c42-a526-9d144b21321e,1007,pro,delivered,2025-02-19T11:42:49,,"has, comma"
+e8a648a4-7073-4e20-ae11-d321a9cc7553,1045,pro,delivered,2025-02-01T01:26:44,,$5.00
+d81e4396-6198-4d84-81e0-27adb2614e0d,1007,pro,delivered,2025-09-27T13:23:18,22,"has ""quotes"""
+db19155c-026b-4ac8-b3ba-d6419487700e,1022,free,delivered,2025-06-09T08:25:00,20,$5.00
+0ee81fdb-ec71-4410-b20b-76f54b366225,1024,free,delivered,2025-11-09T06:27:54,12,"has ""quotes"""
+46885780-4529-4155-bd21-6f986fec9161,1015,pro,cancelled,2025-05-23T13:42:20,,$5.00
+cfb7ca93-51ab-4900-a261-49ad30266aa0,1032,enterprise,delivered,2025-03-22T14:56:02,21,"has ""quotes"""
+7870657a-c6fb-459b-83cb-3771c8ab7ad5,1007,pro,delivered,2025-07-31T16:30:45,9,"has, comma"
+b6ffb182-ab66-4707-bfdf-d04156162553,1038,free,delivered,2025-01-25T16:19:57,27,plain
+4ee98ff4-3cd6-4854-b26d-3e3d46a8e5ee,1051,free,delivered,2025-07-06T01:33:39,,"has ""quotes"""
+4a95e154-3bde-41a6-aa9d-0fb18bfae47e,1027,free,delivered,2025-06-10T12:28:52,,plain
+13d7ccab-f047-4f5a-a1e0-957be0624224,1052,free,delivered,2025-06-26T07:10:05,26,plain
+88402376-6e29-42eb-8f9a-1345177eb657,1017,free,pending,2025-08-10T23:30:05,16,"has ""quotes"""
+78d6c8b5-2c4f-4bcc-919f-344200472edf,1010,free,delivered,2025-01-28T15:03:03,,$5.00
+23687721-eeb8-4a22-82b1-bfdb52dfc28e,1017,free,delivered,2025-12-11T18:22:58,26,$5.00
+0651529f-cc93-4803-99f8-ac6ee2d7c3c6,1038,free,delivered,2025-11-19T05:32:23,29,"has, comma"
+18037542-8e45-48b6-bed7-79f57090eb3f,1057,free,delivered,2025-08-16T05:52:21,,"has, comma"
+571ba477-3090-4912-8085-eb124b28796a,1034,free,delivered,2025-05-24T17:38:43,,$5.00
+b21c2629-db74-4952-9fec-5ec9adeaa7fb,1013,pro,delivered,2025-09-03T21:01:24,14,"has ""quotes"""
+fc73d710-8f3f-4ebe-9ff6-17b39248b966,1022,free,delivered,2025-11-07T15:57:20,26,"has, comma"
+cee152fd-b345-49e2-9fcd-27b4781e9134,1021,pro,pending,2025-12-13T13:25:11,11,"has, comma"
+94dbe7aa-5f87-4121-9eba-4d2b30817dff,1012,free,delivered,2025-04-13T04:20:14,,plain
+d9798a78-70a7-4d9e-a61d-074c579bad21,1018,pro,delivered,2025-06-21T02:42:41,17,"has, comma"
+86cf5a8a-1a94-4796-87a9-528a8a8dbf84,1045,pro,pending,2025-11-22T10:34:11,15,$5.00
+082f582f-16f4-4d9f-905c-1990abcb4ff2,1003,free,delivered,2025-10-19T21:29:34,,"has ""quotes"""
+6ab3de85-c129-4129-8eb4-605c5daa299c,1027,free,delivered,2025-11-19T04:55:22,,$5.00
+c7d99ff8-923b-4e0e-b45d-e69c62fdb034,1004,free,shipped,2025-10-04T19:18:34,,$5.00
+d6cd2131-ed35-45eb-8534-04d7e654d2f0,1030,free,delivered,2025-05-03T21:16:13,,plain
+835056fa-3721-4540-9e20-2340a7a1d806,1019,enterprise,delivered,2025-12-17T06:13:57,30,"has, comma"
+c9dad919-fc75-4d47-a429-b664ef1f20b8,1045,pro,delivered,2025-10-18T03:46:59,28,$5.00
+3499d8b6-de7e-4d7b-a14f-2202f40f96b5,1022,free,delivered,2025-08-27T00:05:45,,"has, comma"
+d3140918-8273-4f2b-82f0-548b9e6c792d,1037,free,pending,2025-08-26T03:02:21,,$5.00
+79beabc5-e427-44b3-a9b1-fc9ad0971ec6,1049,free,delivered,2025-01-20T23:03:08,,"has ""quotes"""
+042db663-6fe9-43bf-a0ef-402b2bdf273d,1042,pro,delivered,2025-10-04T23:59:14,,"has ""quotes"""
+cf799490-395f-41a7-9311-a4f73bd5040e,1032,enterprise,delivered,2025-04-05T07:17:33,23,$5.00
+a271b21c-9f27-47dc-a3f4-344ddac820d7,1013,pro,shipped,2025-12-07T03:22:12,,plain
+2d256801-755c-4046-826a-14987efdb107,1028,free,shipped,2025-05-21T02:19:42,16,"has ""quotes"""
+7fbccfeb-5be2-418b-88d2-ca800caa364b,1017,free,delivered,2025-04-23T03:44:30,,$5.00
+778b4ce1-f549-4eec-aa82-0b0ab1174881,1030,free,delivered,2025-03-13T20:13:06,,plain
+5c9a7f6e-b0ac-4026-93f5-a67452c02fce,1002,free,delivered,2025-01-11T04:51:09,,"has ""quotes"""
+30350db7-27ea-4c06-912f-b7100770394e,1026,free,delivered,2025-04-05T22:21:08,,$5.00
+0d05bcd7-08ed-4bd6-9f92-30ff1bf88d76,1053,free,delivered,2025-12-20T18:17:42,,"has ""quotes"""
+238f63eb-763f-4034-bae7-ab1745cf5e20,1041,free,delivered,2025-10-29T17:02:30,22,$5.00
+f529c081-13d6-49a0-8972-607e202d9617,1028,free,cancelled,2025-07-18T03:27:02,,$5.00
+28382dc8-21d7-44a6-8513-9c4e761fdfb1,1035,free,delivered,2025-08-03T21:12:41,,"has ""quotes"""
+82fb488f-8607-4a7a-9622-05c3e694cc87,1033,free,delivered,2025-03-27T21:38:02,22,"has ""quotes"""
+74d37a67-22f8-46b2-bbf9-e9dbe0bf07bc,1002,free,shipped,2025-03-03T22:35:49,22,plain
+f838a53f-e2ba-4c08-94d5-a56e421dbc27,1020,free,delivered,2025-11-26T00:35:35,12,plain
+4ceffd19-0231-4d46-b7c9-8a0650e9da4e,1058,free,delivered,2025-09-24T16:32:39,23,plain
+b53c3cd4-1dd0-43d8-82c8-6d3c5a2c4107,1035,free,shipped,2025-01-22T16:03:10,7,$5.00
+9dbfbefb-0b3a-4262-9597-48e24e4baaa7,1020,free,pending,2025-07-02T14:18:26,,"has, comma"
+78f8f65b-382a-4b90-bfce-78edd020575b,1020,free,shipped,2025-01-02T18:59:47,22,"has, comma"
+cc96ce6d-eda7-47ec-a8cc-e251b3ffea2d,1013,pro,delivered,2025-08-28T08:39:55,23,"has, comma"
+e7f8a179-9f3e-4c2d-aac3-bd46e98c78e2,1034,free,delivered,2025-03-03T17:57:06,21,$5.00
+caf4e254-2a43-439e-87e5-d3be765fb6f0,1023,free,delivered,2025-06-21T05:56:54,,plain
+d9465778-35d8-4bcc-94e3-f6ee33baaf6f,1029,free,delivered,2025-05-15T22:41:31,,plain
+ee8d2dc6-4dce-4a62-896f-fe09dae5379a,1044,pro,delivered,2025-05-07T03:52:16,,$5.00
+751980df-ff0e-48e3-85fd-1b13c6d39bdd,1034,free,pending,2025-01-08T08:54:11,25,"has, comma"
+8e83384a-2665-483d-8da9-d1af0fef8495,1015,pro,pending,2025-11-15T19:47:20,,"has ""quotes"""
+46c37b8b-83ec-45f9-a74a-e120d2d8cb9c,1019,enterprise,delivered,2025-06-25T14:52:23,,"has ""quotes"""
+bd65e7f9-aa7a-4563-9ec5-4177e10e2879,1017,free,delivered,2025-11-23T09:50:54,,plain
+f5eb0d32-98fb-4e9a-8b33-97300b7d8e1c,1003,free,delivered,2025-02-23T23:57:50,,"has ""quotes"""
+78a759eb-ccb2-453d-946b-a9cf059879c9,1028,free,shipped,2025-01-18T11:36:05,19,"has, comma"
+562895a7-871e-4aa3-9972-5ea61334f6c6,1020,free,delivered,2025-08-29T04:47:17,15,plain
+c38ba5f7-0f8d-4e29-ba7e-f723ad256cf0,1024,free,delivered,2025-08-21T08:16:03,22,$5.00
+4b998980-77e3-4cca-9c28-376f1220cd16,1020,free,delivered,2025-11-20T03:05:31,,"has ""quotes"""
+e1da4808-410f-4171-a415-411d76dc302e,1013,pro,delivered,2025-09-05T00:19:34,5,plain
+d6edb492-faa8-4852-97dc-7dd5540aabf7,1038,free,delivered,2025-03-12T00:51:40,,plain
+a0db7326-56e3-4949-b3a7-bae45b5c89d6,1035,free,shipped,2025-09-06T14:40:20,,plain
+ff7f2dc6-bcc6-4de4-af92-b931a9dcc6a0,1015,pro,delivered,2025-01-09T19:39:26,,$5.00
+5a83ac8a-1ab9-463b-b646-dc00a426dc73,1003,free,delivered,2025-07-18T23:03:04,,"has ""quotes"""
+7fd19123-2213-431b-9979-cdbfda49a154,1034,free,delivered,2025-12-12T08:33:43,,$5.00
+a034c308-ba7e-4d72-a3f5-6f62d323faca,1010,free,delivered,2025-06-07T02:12:20,,"has, comma"
+14a3f373-99e1-4edb-b2c8-725bdd7c0328,1023,free,cancelled,2025-04-01T18:03:42,26,$5.00
+faaa5f6f-4f80-44cf-b990-d6ed0dfb8f6e,1023,free,delivered,2025-04-27T14:43:27,29,"has ""quotes"""
+5e8106bb-e241-42a3-87f7-b22db2cb0217,1057,free,pending,2025-05-23T22:44:14,,"has, comma"
+adc02ea5-17b4-4830-9203-989a69b20041,1041,free,pending,2025-03-25T13:02:15,11,plain
+3bca32a3-b5fc-4af2-b709-5f2a735bceae,1047,free,shipped,2025-04-20T01:35:30,,"has, comma"
+0f989581-2cc5-42f8-9761-500515df85e8,1043,free,delivered,2025-08-13T15:12:25,,plain
+5357cff9-ca0e-47e2-9593-e38f5152ad6e,1043,free,delivered,2025-03-02T07:52:32,,plain
+f935d515-0c04-46f2-93d3-b8b427dbd368,1039,pro,delivered,2025-09-26T07:28:29,9,$5.00
+410e9442-b871-4e87-b73f-153416c95af3,1001,free,delivered,2025-06-05T12:41:25,,"has ""quotes"""
+fa507db5-6824-428d-8b5c-b892312bc556,1014,pro,shipped,2025-08-19T02:41:41,6,"has, comma"
+bc0ac5be-a225-40c6-bbd4-41b6e431aee8,1008,pro,delivered,2025-02-26T13:58:13,,"has, comma"
+e7890a47-214b-4dcd-82e5-b4713c672b5d,1025,free,delivered,2025-12-22T15:03:13,27,"has, comma"
+7d1c55f6-9a85-43db-977a-97e47597338a,1038,free,delivered,2025-11-23T16:04:10,8,"has, comma"
+eb019a60-54de-4910-9cb3-b0ab26bddf84,1011,pro,delivered,2025-02-27T18:40:08,,plain
+adb1b6e7-70ed-43da-9bcc-7360a2f95d18,1052,free,pending,2025-08-23T19:29:37,,plain
+d5ede737-ca15-4717-b60d-1bf627e5941d,1015,pro,shipped,2025-03-29T14:13:00,18,plain
+fe1500fd-84f9-43dd-8f59-b4761dfaaeac,1012,free,delivered,2025-12-07T14:03:41,,"has ""quotes"""
+ed12a50f-042c-450b-82cd-f5b33708f073,1027,free,delivered,2025-08-09T23:53:09,17,"has ""quotes"""
+bd3583c0-7d92-41a6-8f41-21c2d32ce03e,1027,free,pending,2025-03-05T02:35:24,,$5.00
+469252d9-7307-493e-bd07-6b7bb7fda690,1026,free,delivered,2025-04-12T16:08:55,26,"has, comma"
+83a91340-258e-42c6-b48b-673c020759fc,1021,pro,delivered,2025-08-06T09:22:11,12,"has, comma"
+add44768-0759-414a-83b5-6d29cc0040a2,1036,free,delivered,2025-06-18T04:30:49,,"has, comma"
+095c4a7e-6116-4122-8043-267a2d1e8a29,1032,enterprise,delivered,2025-04-05T17:01:20,,"has ""quotes"""
+714f69fe-591b-4c1d-9111-3ac2107ce2c5,1018,pro,delivered,2025-11-10T16:02:11,9,plain
+4723ded0-7bd5-43f2-a685-de41e30d48f3,1022,free,delivered,2025-07-16T06:59:15,,"has ""quotes"""
+25b541a0-b6df-4762-acb8-503533a77d9b,1050,free,shipped,2025-03-03T16:08:39,,$5.00
+540a9c79-35c6-4904-952e-aa1806706352,1020,free,pending,2025-05-29T23:41:09,,$5.00
