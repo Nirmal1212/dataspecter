@@ -33,7 +33,8 @@ schema: spec-driven
 
 context: |
   Project: dataspecter. Config-driven synthetic data simulator: define entities, value ranges and probability distributions in YAML or JSON, then export realistic data as CSV, JSON, or a stream to an HTTP endpoint.
-  Tech stack: not decided yet (update this line once it is).
+  Tech stack: Python 3.11+, hatchling, src/ layout, uv. PyYAML is the only runtime dependency; the rest is standard library. Tests with pytest (uv run pytest), lint and format with ruff (uv run ruff check .).
+  A new runtime dependency must be justified in the change's design.md.
   Process: Git Flow, Conventional Commits and SemVer. The full rules are in CONTRIBUTING.md.
   - One OpenSpec change = one feature/<change-name> branch off develop = one pull request.
   - Change names are kebab-case and start with a verb (add-, update-, remove-, fix-).

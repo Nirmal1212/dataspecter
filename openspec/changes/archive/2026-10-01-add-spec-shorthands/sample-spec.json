@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "seed": 42,
+  "output": { "format": "csv", "dir": "output/shop" },
+  "entities": {
+    "customer": {
+      "count": 1000,
+      "fields": {
+        "id": { "type": "sequence", "start": 1001 },
+        "tier": {
+          "type": "choice",
+          "values": ["free || 70", "pro || 25", "enterprise || 5"]
+        },
+        "age": {
+          "type": "integer",
+          "ranges": ["18 to 35 || 0.7", "36 to 60 || 0.25", "61 to 90 || 0.05"]
+        },
+        "referral_code": {
+          "type": "choice",
+          "values": ["FRIEND10 || 0.2", "LAUNCH25 || 0.2", "PARTNER || 0.1", " || 0.5"]
+        }
+      }
+    },
+    "product": {
+      "count": 50,
+      "fields": {
+        "id": { "type": "sequence" },
+        "price": {
+          "type": "float",
+          "distribution": "normal",
+          "mean": 40,
+          "stddev": 15,
+          "min": 5,
+          "max": 200,
+          "precision": 2
+        }
+      }
+    },
+    "order": {
+      "count": 5000,
+      "fields": {
+        "id": { "type": "uuid" },
+        "customer_id": "$customer.id",
+        "customer_tier": "$customer.tier"
+      }
+    },
+    "order_item": {
+      "count": 12000,
+      "fields": {
+        "id": { "type": "sequence" },
+        "order_id": "$order.id",
+        "product_id": "$product.id",
+        "unit_price": "$product.price",
+        "quantity": {
+          "type": "integer",
+          "ranges": ["1 to 1 || 60", "2 to 3 || 30", "4 to 10 || 10"]
+        },
+        "gift_wrap_level": {
+          "type": "choice",
+          "value_type": "integer",
+          "values": ["0 || 80", "1 || 15", "2 || 5"]
+        }
+      }
+    },
+    "transfer": {
+      "count": 200,
+      "fields": {
+        "from_customer": { "type": "reference", "entity": "customer", "field": "id", "link": "sender" },
+        "to_customer": { "type": "reference", "entity": "customer", "field": "id", "link": "receiver" }
+      }
+    }
+  }
+}
